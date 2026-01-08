@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(research)",
+      "Bash(npm test:*)",
+      "Bash(mkdir:*)",
+      "Bash(git -C /home/ubuntu/app/workers rev-parse:*)",
+      "Bash(cat:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_install",
+      "Bash(npx playwright install:*)",
+      "Bash(curl:*)",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_run_code",
+      "Bash(git rev-parse:*)",
+      "Bash(convert:*)",
+      "Bash(node -c:*)",
+      "Bash(cp:*)",
+      "mcp__playwright__browser_close",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(timeout 10 npx wrangler:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(wc:*)",
+      "WebSearch",
+      "WebFetch(domain:smartscope.blog)",
+      "WebFetch(domain:alexop.dev)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:www.humanlayer.dev)",
+      "WebFetch(domain:paddo.dev)",
+      "WebFetch(domain:www.anthropic.com)"
+    ]
+  }
+}
