@@ -11,6 +11,27 @@ When you tell an AI "add feature X," you're giving it an underspecified problem.
 - [HumanLayer's Claude Code setup](https://github.com/humanlayer/humanlayer/tree/main/.claude)
 - [Ralph Wiggum Autonomous Loops](https://www.humanlayer.dev/blog/brief-history-of-ralph)
 
+## Table of Contents
+
+- [Why This System Exists](#why-this-system-exists) — The specification problem, why phases matter, DoR/DoD gates, session separation, independent validation
+- [Common Failure Modes](#common-failure-modes) — Real examples of what goes wrong without RPIV discipline
+- [Your CLAUDE.md Is Your Highest Leverage](#your-claudemd-is-your-highest-leverage) — Instruction budget, nested files, hooks, auto-memory
+- [What is RPIV?](#what-is-rpiv) — The four-phase pipeline
+- [What is Ralph Mode?](#what-is-ralph-mode) — Autonomous iteration
+- [What's Included](#whats-included) — Agents, commands, hooks, skills, scripts
+- [Setup](#setup) — Installation and configuration
+- [Quick Start](#quick-start) — Interactive, autonomous, and full pipeline flows
+- [The Specification Discipline](#the-specification-discipline) — Good vs bad artifacts, Gherkin acceptance criteria, validation quality, FAIL recovery, institutional memory
+- [When NOT to Use RPIV](#when-not-to-use-rpiv) — Outages, exploration, trivial changes, greenfield
+- [Problem Framing: `/ralph`](#problem-framing-ralph) — Complexity assessment, tier routing, WHO/WHEN/STATUS QUO/WHY
+- [Worktree Lifecycle](#worktree-lifecycle-launch_impl--finish_impl) — Git worktrees explained, `/launch_impl`, `/finish_impl`, the full flow
+- [Command Reference](#command-reference) — All 18 commands with descriptions
+- [Multi-Repo Worktree Support](#multi-repo-worktree-support) — Cross-repo branching
+- [Directory Structure](#directory-structure) — Full file tree
+- [Design Patterns](#design-patterns) — 8 patterns with "why this matters" explanations
+- [Best Practices](#best-practices) — Do/don't, guided vs autonomous, handoff discipline
+- [Glossary](#glossary) — All key terms, commands at a glance, scripts reference
+
 ---
 
 ## Why This System Exists
@@ -41,6 +62,50 @@ What it won't think about:
 Each of these is an assumption the AI will make *silently*. Some will be right. Some will be wrong. You won't know which until you review the PR — and by then, the AI has already committed to an architecture that may be hard to undo.
 
 **RPIV forces these assumptions to become explicit *before* a single line of code is written.**
+
+#### What RPIV Does With the Same Request
+
+Let's trace "add a delete button to the user profile" through the full pipeline:
+
+**Research** discovers the status quo:
+```
+- User deletion uses soft deletes (is_deleted flag + deleted_at timestamp) — src/services/UserService.ts:89
+- Related data: 4 tables with user_id foreign keys (orders, comments, sessions, audit_log)
+- Existing destructive action pattern: account deactivation at src/components/AccountSettings.ts:156
+  uses a 2-step confirmation modal with re-authentication
+- GDPR data export endpoint exists at /v1/user/export but no deletion endpoint
+- Design system has a DestructiveButton component — src/components/ui/DestructiveButton.ts
+- No existing email template for account deletion confirmation
+```
+
+**Plan** makes every decision explicit and reviewable:
+```
+Phase 1: Add DELETE /v1/user/:id endpoint (soft delete + cascade is_deleted to related tables)
+  Verify: curl returns 200, user.is_deleted = true, orders/comments marked deleted
+
+Phase 2: Add re-authentication modal using existing 2-step pattern
+  Verify: modal appears, requires password, blocks deletion without auth
+
+Phase 3: Add deletion confirmation email using existing email service
+  Verify: email sent to user after successful deletion
+
+Phase 4: GDPR compliance — schedule hard delete of PII after 30-day retention
+  Verify: scheduled job exists, respects retention period, audit_log preserved
+```
+
+**Implementation** executes each phase, commits after verification passes.
+
+**Validation** (fresh context) catches what the implementer missed:
+```
+FINDING: Phase 1 cascade deletes orders but doesn't check for pending refunds.
+  If a user deletes their account with an in-progress refund, the refund record
+  becomes orphaned. The plan didn't address this because the research doc didn't
+  catalog the refunds table.
+
+VERDICT: PASS WITH NOTES — add refund check before deletion proceeds.
+```
+
+The same task. The same AI. Wildly different outcomes. The first approach ships a button that silently orphans refund records. The second approach catches it before any code reaches `main`.
 
 ### Why Phases Matter
 
@@ -78,11 +143,79 @@ Over time, these artifacts accumulate into an institutional memory:
 
 **The result: every significant change has a paper trail from "why" to "what" to "does it work."**
 
+### Definition of Ready / Definition of Done
+
+Each phase transition has explicit quality gates. These prevent half-baked artifacts from cascading errors into the next phase.
+
+#### Research
+
+| Gate | Criteria |
+|------|----------|
+| **DoR** (ready to start) | Problem frame written: WHO is affected, WHEN it happens, STATUS QUO (how it works today), WHY it needs to change. Complexity tier assessed (Light/Standard/Deep). |
+| **DoD** (ready for planning) | All entry points identified with `file:line` refs. Data flow traced end-to-end. Existing patterns and conventions documented. Test infrastructure cataloged. Open questions either resolved or explicitly flagged for the plan phase. No "I think" — only "the code shows." |
+
+#### Plan
+
+| Gate | Criteria |
+|------|----------|
+| **DoR** (ready to start) | Research doc committed to `main`. All open questions from research resolved or scoped out. User has reviewed research findings. |
+| **DoD** (ready for implementation) | Desired end state stated in concrete terms (not "improve X" but "X returns Y when Z"). Every phase is small enough to verify independently. Each phase has runnable verification commands (not "check that it works" but `npm test -- --grep "auth"` or `curl -s localhost:8787/v1/...`). Risk assessment present. Rollback plan exists. All referenced file paths verified to exist. Success criteria are binary (pass/fail, not subjective). User has approved the plan. |
+
+#### Implementation
+
+| Gate | Criteria |
+|------|----------|
+| **DoR** (ready to start) | Plan committed to `main`. Worktree created (Standard/Deep tier). Plan reviewed and approved by user. Dependencies installed. `thoughts/shared/` symlinked (if in worktree). |
+| **DoD** (ready for validation) | All plan phases complete. Verification commands pass for every phase. One commit per phase (traceable). Clean working tree (`git status` shows no untracked/unstaged files). Tests pass. No TODO/FIXME/HACK introduced without matching plan justification. |
+
+#### Validation
+
+| Gate | Criteria |
+|------|----------|
+| **DoR** (ready to start) | Implementation complete (all phases). Fresh agent context (never the same session that implemented). Plan doc accessible via `@<path>`. All verification commands passing. |
+| **DoD** (ready to ship) | Requirements checklist: every plan requirement verified present. Test quality review: tests are high-signal (would fail if feature broke), not just `expect(result).toBeDefined()`. Security review: no new injection vectors, auth boundaries intact. Production failure modes checked: what happens on DB timeout, API 500, network partition? Verdict rendered: **PASS**, **PASS WITH NOTES**, or **FAIL** (with specific findings). |
+
+#### The Gate Principle
+
+> No artifact crosses a phase boundary until its DoD is met. No phase begins until its DoR is met.
+
+This sounds bureaucratic. It isn't. Most DoR/DoD checks take seconds — they're a quick scan of the artifact before moving on. The cost of checking is trivial. The cost of *not* checking is a research doc with gaps that becomes a plan with blind spots that becomes an implementation with bugs that the validator catches too late.
+
+In Ralph Mode, these gates are enforced automatically. The autonomous loop evaluates its own artifact against the DoD criteria before declaring a phase complete. If it doesn't pass, it iterates — that's the whole point of Ralph.
+
+### Why Separate Sessions Matter
+
+A common impulse is to chain everything in one session: research, plan, implement, validate. It feels efficient. It's actually dangerous.
+
+**Context window degradation.** LLMs have a finite context window — the total text they can "see" at once. As a conversation grows longer, three things happen:
+
+1. **Attention dilution**: Early instructions and findings get less weight as newer content pushes them further from the model's focus. Your carefully crafted CLAUDE.md, read at the start, fades as 2,000 lines of research and implementation accumulate.
+2. **Anchoring bias**: The model anchors on its own earlier reasoning. Once it concluded "approach A is best" during research, it won't seriously consider approach B during planning — it already has sunk context invested in A.
+3. **Error compounding**: A small misunderstanding in research becomes a flawed assumption in the plan, becomes a structural defect in the implementation. In a single session, there's no checkpoint where fresh eyes could catch the original error.
+
+**The fresh-start advantage.** When you start a new session for each phase, the model reads the *artifact* from the previous phase — not its own reasoning process. It sees only the conclusions, not the deliberation. This means:
+- A planning session sees the research *document*, not the 47 grep results the researcher waded through
+- An implementation session sees the *plan*, not the three alternative approaches that were rejected
+- A validation session sees the *plan and code*, not the implementer's justifications for shortcuts
+
+Each phase transition is a natural checkpoint. The artifact must stand on its own. If the research doc doesn't make sense without the conversation that produced it, it's not ready (DoD not met).
+
+**Practical rule: one phase per session.** Don't chain research into planning into implementation. Complete research, commit the artifact, start a new session for planning. The cost is a few minutes of session overhead. The benefit is that each phase starts with maximum attention and zero bias from prior phases.
+
 ### Why Separate Validator from Implementer?
 
 This is the single most impactful practice in the entire system. From [Anthropic's Claude Code Best Practices](https://www.anthropic.com/engineering/claude-code-best-practices):
 
 > "A simple but effective approach is to have one Claude write code while another reviews or tests it. Sometimes having separate context is beneficial."
+
+This isn't a novel concept. It's one of the most well-established practices in software engineering:
+
+- **Code review** works because the reviewer didn't write the code — they read it cold and catch what the author normalized
+- **QA teams** exist separately from development teams because testing your own work is fundamentally compromised
+- **Security audits** are done by outside firms because internal teams have blind spots about their own architecture
+- **Medical device software** (IEC 62304) requires independent verification — the person who verifies can never be the person who implemented
+
+The AI angle is that AI agents don't naturally separate these roles. Left to its defaults, the same context that researched, planned, and implemented will also "validate" — rubber-stamping its own work with tests that confirm its assumptions. RPIV enforces structural separation that the AI won't create on its own.
 
 The implementer suffers from three biases:
 1. **Confirmation bias**: "I know this works because I just wrote it"
@@ -98,9 +231,65 @@ In practice, validators catch:
 - Requirements from the plan that were accidentally skipped
 - Production failure modes (returning 401 when the database is down)
 
+Remember our delete button example? The validator caught orphaned refund records — something the implementer couldn't see because they'd internalized the (incomplete) research doc's list of related tables. Fresh eyes found the table that wasn't cataloged.
+
+---
+
+## Common Failure Modes
+
+These are real patterns we've seen repeatedly. Each one is preventable with RPIV discipline.
+
+### 1. The Wrong Code Path
+
+**What happened:** A bug report said "JIT migration fails for new orgs." The implementer found a migration function, fixed the SQL, shipped it. The bug persisted.
+
+**Root cause:** The migration function they fixed was in the *Worker* code path. New orgs were created through the *Durable Object* code path, which had its own migration logic. The fix was correct but in the wrong file.
+
+**What RPIV prevents:** The research phase would have traced the actual execution path from "new org creation" through the code, identifying *all* code paths that handle migration — not just the first one grep found.
+
+### 2. The Incomplete Fix
+
+**What happened:** "Database error: no such table `workflows`" was reported. The implementer added a CREATE TABLE migration. Tests passed. Deployed. New error: "no such column `status` in table `workflows`."
+
+**Root cause:** The table existed in some orgs (created by an earlier migration) but was missing a column added later. The fix handled the "no table" case but not the "table exists, column missing" case.
+
+**What RPIV prevents:** The plan phase would have required the implementer to enumerate *all* possible database states, not just the one in the bug report. The DoD for planning requires verification commands that cover each state.
+
+### 3. The Diagnosis That Wasn't
+
+**What happened:** "Tool calls are failing for org X." The implementer checked the tool service, found nothing wrong, concluded "the change isn't deployed yet." Waited a day. Still broken.
+
+**Root cause:** The tool service was fine. The issue was in the Durable Object's persistent storage — a cached permission record was stale. The implementer diagnosed a deployment problem because that was the easiest explanation, not the correct one.
+
+**What RPIV prevents:** The research phase requires *ruling out alternatives* — not stopping at the first plausible explanation. "Not deployed" would need verification (`wrangler deployments list`) before being accepted as the root cause.
+
+### 4. The Model ID That Never Existed
+
+**What happened:** A new AI model was added to the catalog with the ID `gemini-3.0-pro-preview`. Every API call returned 404.
+
+**Root cause:** The correct API identifier was `gemini-3-pro-preview` (no `.0`). The implementer assumed the naming convention without checking the provider's documentation.
+
+**What RPIV prevents:** The research phase requires verifying facts against source documentation — not inferring from patterns. A research doc with "API ID: `gemini-3-pro-preview` (verified: [link to provider docs])" would have caught this.
+
+### 5. The Low-Signal Test Suite
+
+**What happened:** Implementation passed all tests. Validation passed. Deployed to staging. Feature didn't work at all.
+
+**Root cause:** The tests mocked the entire service layer and only verified that functions were called with the right arguments. They never tested actual behavior. `expect(mockService.create).toHaveBeenCalledWith(...)` passed, but the real service threw an error the mocks hid.
+
+**What RPIV prevents:** The validation phase explicitly checks test *quality*, not just test *results*. A test that mocks everything and asserts `toHaveBeenCalled` is low-signal — it passes regardless of whether the feature works. Validators are trained to flag these.
+
+### The Pattern
+
+Every failure above shares a common structure: **someone skipped a step that felt unnecessary.** They didn't trace the full code path because they found a plausible one. They didn't check all database states because they reproduced one. They didn't verify the API docs because the naming convention seemed obvious. They didn't question the test quality because the tests passed.
+
+RPIV's phases and gates exist precisely to catch these skips. The cost of each check is minutes. The cost of skipping is hours of debugging in production.
+
 ---
 
 ## Your CLAUDE.md Is Your Highest Leverage
+
+Before diving into the pipeline itself, there's one meta-level decision that affects every phase: your `CLAUDE.md` file. It sits above the pipeline — every research session, every plan, every implementation reads it first. If it's wrong, everything downstream is wrong. If it's bloated, everything downstream is slower. Getting it right is disproportionately valuable.
 
 RPIV gives you the pipeline. But the thing that sits *above* the pipeline — affecting every phase — is your `CLAUDE.md` file.
 
@@ -423,6 +612,42 @@ Before the AI touches your code, it documents how things work *today*:
 
 This catches the most common failure mode: the AI assuming your codebase works like a typical tutorial project when it actually has years of accumulated design decisions.
 
+#### What Good Research Looks Like
+
+**Bad research** (vague, no anchoring):
+```
+The authentication module handles user login. It checks credentials and
+returns tokens. There's middleware that validates tokens on protected routes.
+The system supports email and OAuth login methods.
+```
+
+**Good research** (precise, verifiable):
+```
+Authentication flow — 3 entry points:
+
+1. Email/password: POST /v1/auth/login → AuthController.login() at src/controllers/auth.ts:34
+   → calls AuthService.validateCredentials() at src/services/auth.ts:89
+   → calls TokenService.createPair() at src/services/token.ts:12 (returns {access, refresh})
+   → sets HttpOnly cookie 'refresh_token' (7d expiry) + returns access token in body
+
+2. OAuth (Google): GET /v1/auth/google/callback → src/controllers/oauth.ts:67
+   → same TokenService.createPair() path after OAuth code exchange
+
+3. Magic link: POST /v1/auth/magic → src/controllers/auth.ts:112
+   → creates one-time token in magic_links table (15min expiry)
+   → GET /v1/auth/magic/verify?token=X → validates + same token creation path
+
+Token refresh: POST /v1/auth/refresh → src/middleware/auth.ts:45
+   → reads refresh_token cookie → calls TokenService.refresh() at src/services/token.ts:56
+   → SILENT FAILURE: if DB pool exhausted, returns 401 (should be 503)
+
+Test coverage: 12 tests in tests/auth.test.ts — all mock TokenService
+   → NO integration tests that test actual DB interaction
+   → refresh token rotation is UNTESTED
+```
+
+The bad version tells you nothing you couldn't guess. The good version tells you exactly where to find every piece of the auth flow, and it already surfaced two issues (silent 401 on DB failure, untested refresh rotation) that would become bugs if implementation touched this code without understanding it.
+
 ### Plans Make Decisions Reviewable
 
 A plan is a specification. It says:
@@ -433,6 +658,40 @@ A plan is a specification. It says:
 - "Here's how to undo it" (rollback plan)
 
 You review the plan *before* any code exists. This is orders of magnitude cheaper than reviewing a PR with 500 lines of code that took the wrong approach. If the plan is wrong, you `/iterate_plan` with feedback. If it's right, the implementation is largely mechanical.
+
+#### Acceptance Criteria: Given / When / Then
+
+Plans use **Gherkin-style acceptance criteria** — a format from Behavior-Driven Development (BDD) that forces verification steps to describe *observable behavior*, not vague outcomes.
+
+**Bad verification** (subjective, untestable):
+```
+Phase 2: Add the notification service
+  Verify: Check that notifications work correctly
+```
+
+**Good verification** (concrete, runnable):
+```
+Phase 2: Add notification service
+  Given: user has email_notifications=true in preferences
+  When: POST /v1/notifications/send with {userId, type: "mention", content: "..."}
+  Then: notification record created in notifications table with status="pending"
+  And: email queued in jobs table with type="notification_email"
+
+  Given: user has email_notifications=false in preferences
+  When: same POST request
+  Then: notification record created with status="pending"
+  And: NO email queued (in-app only)
+
+  Verify: curl -X POST localhost:8787/v1/notifications/send -d '{"userId":"test-user","type":"mention","content":"test"}' && sqlite3 dev.db "SELECT * FROM notifications ORDER BY created_at DESC LIMIT 1"
+```
+
+The bad version lets the implementer decide what "works correctly" means. The good version specifies the exact behavior, including the edge case (notifications disabled), and provides a concrete command to verify it. These Given/When/Then scenarios also become the template for tests during implementation — the red phase of TDD.
+
+#### The Cost of Reviewing a Plan vs. Reviewing Code
+
+A plan is 50-100 lines of structured text. A PR implementing that plan might be 500-2,000 lines of code across 8 files. Reviewing the plan takes 5 minutes and catches architectural mistakes ("why are you adding a new table when the existing queue table already handles this?"). Reviewing the PR after the fact takes 30 minutes and catches the same mistakes, but now unwinding them means throwing away work and rewriting.
+
+The plan is where you catch "we should use the existing event system, not build a new one" — a sentence that saves 300 lines of unnecessary code.
 
 ### Validation Closes the Loop
 
@@ -451,6 +710,57 @@ It also checks production failure modes:
 - Do service failures return 503 with `Retry-After` headers?
 
 These are the kinds of issues that ship to production when the implementer is too close to the code to see them.
+
+### What Happens After a FAIL
+
+A FAIL verdict doesn't mean "start over." It means "specific things need fixing before this can ship." The validation report includes concrete findings with file:line references.
+
+**The recovery flow:**
+
+1. **Read the validation report.** Each FAIL finding specifies what's wrong and where.
+2. **Assess scope.** If findings are small (missing error handling, a gap in test coverage), fix them in the same worktree.
+3. **Re-validate.** Run `/validate_plan` again with the same plan. The validator starts fresh — it doesn't remember the previous FAIL. It evaluates the code as-is.
+4. **If findings are architectural** (wrong approach, missing requirements that require plan changes), go back to `/iterate_plan` with the validation feedback, update the plan, then re-implement the affected phases.
+
+The key insight: **validation failures are cheap.** They happen before the code reaches `main`, before PRs are created, before anyone else sees the code. A FAIL at this stage costs minutes of rework. The same issue caught in production costs hours or days.
+
+**PASS WITH NOTES** is not a soft failure. It means the implementation meets all requirements, but the validator noticed things worth mentioning — minor style inconsistencies, opportunities for follow-up work, or documentation gaps. These notes become input for future tasks, not blockers for the current one.
+
+### Institutional Memory
+
+Over time, the `thoughts/shared/` directory becomes your project's institutional memory.
+
+Six months from now, when a new engineer (human or AI) asks "why do we use soft deletes instead of hard deletes?", the answer is in `thoughts/shared/plans/2025-09-15_user-deletion_plan.md`, in the Alternatives Considered section. It documents that hard deletes would break the audit log requirement discovered during research, that the team considered and rejected a hybrid approach, and that the 30-day retention period was chosen to comply with GDPR Article 17.
+
+Without this trail, the answer would be "I think someone decided that a while ago" or, worse, a new engineer would propose switching to hard deletes without understanding why soft deletes were chosen — repeating the entire investigation.
+
+Plans serve as **Architectural Decision Records (ADRs)** without the ceremony. Research docs catalog the state of the codebase at a point in time. Validation reports document what was checked and what passed. Handoffs capture the context that would otherwise be lost between sessions. Together, they create an audit trail from "why did we build this?" to "what did we check before shipping?"
+
+---
+
+## When NOT to Use RPIV
+
+RPIV is not universally appropriate. Using the full pipeline when it's not warranted wastes time on ceremony instead of progress.
+
+**Don't use RPIV for:**
+
+- **Active outages.** When production is down, fix it first, document later. The priority is restoring service, not writing a research doc. RPIV's discipline is for building things right, not for firefighting. After the fix, consider a post-mortem that feeds into a future RPIV-managed improvement.
+
+- **Pure exploration.** When you're spiking a new technology, evaluating a library, or prototyping an idea, the overhead of formal phases is counterproductive. Exploration is inherently non-linear — you don't know what you're building yet. Use RPIV when exploration concludes and you're ready to build something specific.
+
+- **Trivial changes.** Fixing a typo, updating a dependency version, changing a color value. The Light tier already handles these, but even Light tier's "state assumptions, get confirmation" step may be overkill for truly trivial work. Use your judgment.
+
+- **Greenfield projects with no existing codebase.** The research phase ("how does this work today?") has nothing to research when there's no existing code. Start with a plan and build. Once the codebase exists, RPIV becomes valuable for subsequent changes.
+
+- **Time-critical windows.** If a partner needs a specific API endpoint by tomorrow for a demo, the cost of RPIV's full cycle may exceed the cost of technical debt. Ship it, then use RPIV to clean it up properly.
+
+**RPIV's preconditions:**
+1. An existing codebase with meaningful complexity
+2. Enough time to invest in research (hours, not minutes)
+3. Changes that touch multiple files or have non-obvious interactions
+4. Stakes high enough to justify the discipline (not every 2-line fix)
+
+The tier system handles most of this automatically — `/ralph` will assess a trivial change as Light and skip the full pipeline. But it's worth understanding when to bypass the system entirely.
 
 ---
 
@@ -494,13 +804,42 @@ Multi-file auth change with one architectural decision. Standard pipeline.
 
 Without tier assessment, every task gets the same treatment. Small bug fixes get burdened with formal research docs. Complex architectural changes get "just do it" treatment. Both waste time — one through ceremony, the other through rework.
 
-The problem frame also forces a WHO/WHEN/STATUS QUO/WHY statement before any code exploration. This is the specification discipline applied to the *task itself* — making the AI state what it thinks the problem is before investigating, so its assumptions are visible and correctable.
+### The Problem Frame: WHO / WHEN / STATUS QUO / WHY
+
+Before any investigation, `/ralph` forces the AI to write down its understanding of the problem in four parts. This is the specification discipline applied to the *task itself* — making assumptions visible before they can silently drive investigation.
+
+**WHO** is affected? This seems obvious but often isn't. "Users can't log in" — which users? All of them? Only new signups? Only mobile? Only users who signed up with email (not OAuth)? Naming the affected population forces the investigator to scope the problem correctly. If the answer is "I don't know yet," that's valuable information — it means research needs to start with scoping, not jumping to the login code.
+
+**WHEN** does it happen? Timing is a diagnostic signal. "After the last deploy" points to a code change. "Only on Mondays" points to a scheduled job. "Intermittently" points to a race condition or external dependency. "Always" points to a fundamental logic error. The AI will skip this question if you let it — it wants to start grepping immediately. Making it state when the problem occurs often narrows the search space by 80%.
+
+**STATUS QUO** — how does it work today? This is the most important element. Before proposing any change, describe the *current* behavior precisely. Not "the auth system is broken" but "the auth middleware at `src/middleware/auth.ts:45` checks JWT expiration, calls `TokenService.refresh()` if expired, and returns 401 if refresh fails. Currently, refresh fails silently when the database connection pool is exhausted, returning 401 instead of 503." This forces the AI to understand the system before trying to fix it.
+
+**WHY** is it unacceptable? This prevents fixing things that aren't broken. "The login page loads slowly" — is it actually slow (measured), or does it just feel slow? "Users are complaining about the dashboard" — are they complaining about performance, layout, missing data, or something else? Stating why the status quo is unacceptable forces a concrete problem statement that can be verified as solved.
 
 ---
 
 ## Worktree Lifecycle: `/launch_impl` + `/finish_impl`
 
 These two commands bookend the implementation phase and handle all the branch/worktree complexity so you don't have to.
+
+### What Is a Git Worktree?
+
+A git worktree is a second (or third, or fourth) checkout of the same repository at a different filesystem path. Unlike branches — which switch the *same* directory between different versions — worktrees give you *separate directories* for different branches simultaneously.
+
+```
+# Normal branching: one directory, switch back and forth
+~/project/  (main)
+git checkout feature/dark-mode    # ~/project/ is now feature/dark-mode
+git checkout main                 # ~/project/ is now main again
+
+# Worktrees: separate directories, both exist at once
+~/project/                        # main branch (your working directory)
+~/project/.claude/worktrees/dark-mode/  # feature/dark-mode (isolated)
+```
+
+**Why this matters for AI-assisted development:** When an autonomous agent implements a feature, it modifies files, runs tests, potentially breaks things, and may need to retry. If this happens in your main working directory, your work-in-progress is at risk. With a worktree, the agent works in an isolated copy — if it goes sideways, you `rm -rf` the worktree and try again. Your main directory is untouched.
+
+Worktrees also let you keep researching and planning on `main` while implementation runs in the worktree. Two Claude sessions, two directories, zero conflicts.
 
 ### The Problem They Solve
 
@@ -781,46 +1120,101 @@ your-project/
 
 ## Design Patterns
 
+These patterns emerged from hundreds of real implementation cycles. Each one addresses a specific failure mode we observed in AI-assisted development.
+
 ### 1. "Documentarian, not critic"
+
 All agents describe what IS, not what SHOULD BE. No unsolicited suggestions, no "improvements," no "you should." Just precise documentation of the existing codebase.
 
+**Why this matters:** AI models have strong opinions about code quality. Left unconstrained, a research agent will spend half its output suggesting refactoring opportunities, pointing out "code smells," and recommending "better" patterns. This noise obscures the actual findings — which is how the code works *today*, not how it *could* work. The person reading the research doc needs facts to make decisions, not the AI's aesthetic preferences. Save opinions for the plan phase, where they can be evaluated explicitly.
+
 ### 2. Parallel sub-agents
+
 Research spawns multiple agents simultaneously for efficiency. The main context stays clean while sub-agents do the heavy lifting.
 
+**Why this matters:** A single agent researching a feature might need to read 30+ files, trace 5 data flows, and catalog 3 test suites. Doing this sequentially fills the context window with raw file contents, leaving less room for synthesis. By spawning sub-agents (one per data flow, one for test infrastructure, one for dependencies), each agent works with focused context and returns a summary. The main agent synthesizes these summaries without being polluted by thousands of lines of raw code. This is the same reason human research teams divide work — parallel exploration with centralized synthesis.
+
 ### 3. File:line references for everything
+
 All claims must be anchored to specific code locations. No vague "the authentication module" — it's `src/middleware/auth.ts:45-67`.
 
+**Why this matters:** Vague references are unfalsifiable. "The auth module validates tokens" — is that true? You'd have to go read the code to find out, which defeats the purpose of the research doc. `src/middleware/auth.ts:45` — you can open that file, go to that line, and verify in seconds. File:line references also serve as links between artifacts: when the plan says "modify the validation logic at `src/middleware/auth.ts:45`," the implementer knows exactly where to go. And when the validator checks "did Phase 2 modify the correct file?", the reference makes verification trivial. Without anchoring, every claim requires re-investigation.
+
 ### 4. Artifacts as contracts
+
 Research docs, plans, and validation reports aren't just documentation — they're contracts between phases. The plan is a contract between human and AI. The validation report is a contract between implementation and `main`.
 
+**Why this matters:** Without a written contract, there's nothing to hold the implementation accountable to. The AI will drift — adding features the plan didn't specify, skipping requirements it finds inconvenient, optimizing for elegance over correctness. The plan is the specification: "build *this*, verify with *these commands*, stop at *this boundary*." If the implementation adds something not in the plan, the validator flags it. If it skips something in the plan, the validator flags that too. The artifact is the single source of truth, not the AI's memory of what it intended.
+
 ### 5. No AI attribution in commits
+
 Commits should appear human-authored. The human is responsible for the code, not the AI. The plan and validation docs provide the audit trail.
 
+**Why this matters:** This is about accountability, not credit. When a commit says "Co-authored-by: AI," it creates ambiguity about who is responsible for the code. If a bug ships, who owns it? The human who approved it? The AI that wrote it? The answer should always be the human — the human reviewed the plan, approved the approach, and accepted the implementation. AI is a tool, like a compiler or a linter. You don't credit your linter in commits, and you don't blame it when bugs ship. The audit trail exists in `thoughts/shared/` — the research doc, plan, validation report, and any handoff docs. That's where the AI's contribution is documented and traceable.
+
 ### 6. Interactive confirmation
+
 The AI presents its understanding before taking action. "Here's what I'm going to do" before "I did it."
 
+**Why this matters:** The specification problem applies at every scale. "Fix the bug" has the same ambiguity as "add user notifications" — the AI will fill gaps with assumptions. Interactive confirmation creates micro-specification points: "I understand the bug is X, caused by Y, and I plan to fix it by modifying Z. Correct?" This catches misunderstandings before they become wrong code. It also creates a record of intent — when reviewing the implementation later, you can trace back to "the AI said it would do X, and it did X" rather than trying to reverse-engineer intent from code.
+
 ### 7. Fresh context for verification
+
 The validator has never seen the implementation reasoning. It only has the plan (what was promised) and the code (what was delivered). This eliminates the implementer's confirmation bias.
+
+**Why this matters:** This is the structural separation principle in action. The implementer has context the validator doesn't: "I considered handling the edge case differently but decided this was simpler." That reasoning may be correct — or it may be a rationalization for cutting corners. The validator can't tell the difference, so it evaluates the code on its merits. If the edge case handling is actually fine, the validator will PASS it. If it's a gap, the validator will flag it. The implementer's reasoning is irrelevant to the validator's assessment — and that's the point.
+
+### 8. State assumptions before investigating
+
+Before opening any file, the AI writes down what it *believes* about the problem. What layer is affected? What data flow is involved? What's the likely root cause?
+
+**Why this matters:** AI agents anchor on the first evidence they find. If the first grep result looks relevant, they'll build their entire investigation around it — even if it's the wrong code path (see Common Failure Mode #1). By writing down assumptions *before* investigating, those assumptions become visible and testable. "I believe the bug is in the auth middleware" is an explicit hypothesis that can be confirmed or refuted. Without this step, the assumption is implicit — the AI starts grepping for auth-related code without admitting that it's guessing where the problem is.
 
 ---
 
 ## Best Practices
 
 ### Do
-- **Complete each phase before moving on** — Don't skip research
-- **Reference artifacts by path** — `@thoughts/shared/plans/2026-01-10_feature_plan.md`
-- **Use sub-agents for heavy lifting** — Keeps main context clean
-- **Include file:line references** — Makes verification concrete
-- **Run verification commands** — Don't assume success
-- **Use worktrees for autonomous mode** — Isolates experimental changes
-- **Commit plans to main before creating worktrees** — `@<path>` refs resolve at invocation time
+- **Complete each phase before moving on** — Don't skip research. The 15 minutes you save skipping research becomes 2 hours of debugging an implementation built on wrong assumptions.
+- **Reference artifacts by path** — `@thoughts/shared/plans/2026-01-10_feature_plan.md`. This creates a navigable paper trail. Six months from now, you can trace any feature from plan to PR.
+- **Use sub-agents for heavy lifting** — Keeps main context clean and focused on synthesis rather than raw investigation.
+- **Include file:line references** — Makes verification concrete and falsifiable. "The auth module" is a claim. `src/middleware/auth.ts:45` is a fact.
+- **Run verification commands** — Don't assume success. "It should work" is not evidence. A passing `curl` command or test output is.
+- **Use worktrees for autonomous mode** — Isolates experimental changes from your working directory. If the AI goes sideways, your main branch is untouched.
+- **Commit plans to main before creating worktrees** — `@<path>` refs resolve at invocation time. If the plan isn't committed, the worktree session can't find it.
+- **End every session with a commit or handoff** — Uncommitted work is lost context. Either commit progress or create a handoff doc so the next session can continue.
 
 ### Don't
-- **Don't improvise during implementation** — Stick to the plan
-- **Don't validate your own work** — Fresh context catches biases
-- **Don't skip the security phase** — It's mandatory in validation
-- **Don't batch completions** — Mark things done as you go
-- **Don't run Ralph without limits** — Always set max iterations
+- **Don't improvise during implementation** — Stick to the plan. If you discover something the plan didn't anticipate, go back to `/iterate_plan` rather than ad-libbing.
+- **Don't validate your own work** — Fresh context catches biases. The implementer is constitutionally incapable of objectively reviewing their own output.
+- **Don't skip the security phase** — It's mandatory in validation. Security issues are invisible to the implementer who didn't think about them.
+- **Don't batch completions** — Mark things done as you go. Verification is cheaper when the change is small and fresh in context.
+- **Don't run Ralph without limits** — Always set max iterations. Autonomous loops burn tokens. Start with lower limits and increase as you gain confidence.
+
+### Guided vs. Autonomous: When to Choose Which
+
+| Scenario | Use Guided (`/implement_plan`) | Use Autonomous (`/ralph_impl`) |
+|----------|-------------------------------|-------------------------------|
+| You want to watch each step | Yes | No |
+| You'll be away from keyboard | No | Yes |
+| Codebase is small and familiar | Either works | Either works |
+| Codebase is large and unfamiliar | No — autonomous handles exploration better | Yes |
+| Changes touch auth or payments | Yes — review each phase | No — too risky for unsupervised |
+| You're learning the codebase | Yes — see how the AI navigates it | No — you'll miss the educational value |
+| Token budget is tight | Yes — fewer iterations, less waste | No — autonomous retries cost tokens |
+
+The same tradeoff applies to research (`/research_codebase` vs `/ralph_research`) and planning (`/create_plan` vs `/ralph_plan`). Guided gives you control and visibility. Autonomous gives you throughput and handles complexity you'd find tedious to manage manually.
+
+### The Handoff Discipline
+
+Handoffs aren't just a recovery tool — they're a session management practice. Every session has a finite useful lifespan (context window limits, attention degradation). Rather than pushing a session until it degrades, proactively create handoffs at natural breakpoints:
+
+- After completing a major phase (research done, plan done)
+- When you're about to step away (meeting, end of day)
+- When the AI seems to be losing track of earlier context
+- When switching from one sub-task to another
+
+A handoff captures: what was done, what was learned, what's next, and any context that would be lost if the session ended. The next session reads the handoff and continues from a clean, informed starting point — better than a degraded continuation of the previous session.
 
 ---
 
@@ -842,6 +1236,13 @@ The validator has never seen the implementation reasoning. It only has the plan 
 | **Instruction budget** | The finite number of instructions (~150-250) an LLM can follow before accuracy degrades. Your CLAUDE.md consumes part of this budget on every request. |
 | **Nested CLAUDE.md** | A `CLAUDE.md` file in a subdirectory. Only loaded when Claude reads files in that directory. Keeps the root file lightweight while providing context-specific instructions where needed. |
 | **Hook** | A shell script that runs before a tool use (pre-tool-use hook). Enforces constraints 100% of the time, unlike CLAUDE.md instructions which can be ignored ~3% of the time. |
+| **DoR (Definition of Ready)** | The criteria that must be met before a phase can begin. Prevents starting work on incomplete inputs. |
+| **DoD (Definition of Done)** | The criteria that must be met before a phase's output can feed into the next phase. Prevents shipping half-baked artifacts downstream. |
+| **Quality Gate** | A DoR/DoD checkpoint between phases. In Ralph Mode, gates are evaluated automatically; the loop iterates until the gate passes. |
+| **Gherkin / BDD** | Given/When/Then acceptance criteria format from Behavior-Driven Development. Forces verification steps to describe observable behavior, not vague outcomes. Plan acceptance criteria become test templates during implementation. |
+| **Context degradation** | The progressive loss of attention and accuracy as an LLM's context window fills up. Why phases should be separate sessions — each starts fresh with maximum attention. |
+| **Anchoring bias** | The tendency to anchor on the first plausible explanation or approach found. Countered by the "state assumptions before investigating" pattern and fresh-context validation. |
+| **Session** | A single Claude Code conversation. One phase per session is the recommended practice. Sessions are connected by artifacts (research docs, plans, handoffs), not by shared context. |
 
 ### Key Commands at a Glance
 
