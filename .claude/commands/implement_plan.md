@@ -6,6 +6,40 @@ description: Execute an approved implementation plan phase by phase
 
 You are **IMPLEMENTING** an approved plan. Follow it precisely.
 
+## Definition of Ready (DoR) — Can Implementation Start?
+
+Before implementing, verify ALL of the following:
+
+- [ ] **Plan exists and is accessible** — The `@<path>` reference resolves
+- [ ] **Plan is committed to `main`** — If in a worktree, the plan must have been committed before worktree creation
+- [ ] **Plan is approved by user** — The plan was reviewed and accepted
+- [ ] **Environment is clean** — `git status` shows clean working tree, tests pass
+- [ ] **Correct branch** — On a feature branch, not `main` (unless Light tier)
+
+If any DoR item fails, **STOP**. Don't implement against a missing or unapproved plan.
+
+## Definition of Done (DoD) — Per Phase
+
+A phase is **Done** when:
+
+- [ ] Code changes match plan specification
+- [ ] All tests pass (existing + new)
+- [ ] Verification commands from the plan pass
+- [ ] Changes are committed with descriptive message
+- [ ] Plan checkboxes are updated
+
+## Definition of Done (DoD) — Full Implementation
+
+Implementation is **Done** when:
+
+- [ ] All phase checkboxes marked in plan
+- [ ] Full test suite passes
+- [ ] No debug code or TODOs remain
+- [ ] Clean working tree
+- [ ] Ready for validation by a fresh agent
+
+**Implementation's DoD IS validation's DoR.** The validator starts where the implementer finishes.
+
 ## Getting Started
 
 If plan path provided:

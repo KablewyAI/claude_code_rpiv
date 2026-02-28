@@ -43,7 +43,7 @@ Ralph Wiggum doesn't give up. Neither do you. Each phase might require multiple 
    - Do NOT proceed with implementation without the plan file.
 
 1. **Read the entire plan** — Understand the full scope
-2. **Definition of Ready gate** — Verify the plan meets DoR before starting:
+2. **Definition of Ready (DoR) gate** — The plan's DoD IS this command's DoR. Verify before starting:
    - [ ] Every behavior-changing phase has Given/When/Then acceptance criteria
    - [ ] Acceptance criteria cover happy path, error, and edge cases
    - [ ] Every phase has a complexity estimate (S/M/L)
@@ -309,9 +309,9 @@ claude --dangerously-skip-permissions \
 
 **Warning**: `--dangerously-skip-permissions` allows autonomous file edits. Use with caution and always in a worktree!
 
-## Completion Criteria (Definition of Done — Full Implementation)
+## Definition of Done (DoD) — Full Implementation
 
-Implementation is complete when:
+Implementation is complete (and meets validation's DoR) when:
 - [ ] All phase checkboxes are marked in plan
 - [ ] Every phase passed its DoD gate
 - [ ] Every behavior-changing phase has new tests covering its acceptance criteria

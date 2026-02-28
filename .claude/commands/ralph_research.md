@@ -25,6 +25,17 @@ bash scripts/setup-worktree-thoughts.sh "$(pwd)" "$(git rev-parse --git-common-d
 
 This ensures all research docs are written to the shared canonical location, not siloed in the worktree.
 
+## Definition of Ready (DoR) — Can Research Start?
+
+Before proceeding, verify ALL of the following:
+
+- [ ] **Problem frame writable**: You can articulate WHO/WHEN/STATUS QUO/WHY (next section)
+- [ ] **Complexity tier assessed**: `/ralph` has been run OR user has described the task with enough detail to frame it
+- [ ] **Scope is clear**: You know what topic/area to research (not "look at the whole codebase")
+- [ ] **Access confirmed**: You can read the relevant directories and files
+
+If any DoR item fails, ask the user to clarify before proceeding. Don't start researching a vague question.
+
 ## Problem Frame (BEFORE Research Begins)
 
 Before spawning any agents, force clarity on what you're investigating.
@@ -107,7 +118,7 @@ For each gap identified:
 3. **Run targeted ast-grep queries** for anti-patterns, missing error handling, or structural issues discovered in earlier iterations
 4. **Document findings** incrementally
 
-### Completion Criteria
+### Definition of Done (DoD) — Is Research Complete?
 
 Research is complete when:
 - [ ] All entry points are identified with file:line references
@@ -122,8 +133,7 @@ Research is complete when:
 - [ ] Existing packages/libraries evaluated — viable candidates listed with health metrics, or explicitly documented that none exist
 - [ ] Open questions are either answered or explicitly documented as unknowns
 
-**Why these matter:** The planning phase (`ralph_plan`) now requires Given/When/Then acceptance criteria
-per phase. The planner can only write specific, assertable Gherkin if the research provides:
+**The research DoD feeds directly into the plan's DoR.** If research is incomplete, planning starts on a shaky foundation. The planning phase (`ralph_plan`) requires Given/When/Then acceptance criteria per phase. The planner can only write specific, assertable Gherkin if the research provides:
 - **Behavior descriptions** → become Given/When/Then scenarios
 - **Error modes & boundaries** → become error and edge-case scenarios
 - **Test infrastructure** → ensures the TDD red phase writes tests that fit the codebase

@@ -16,6 +16,14 @@ If no context provided:
 
 If context is provided, read all mentioned files FULLY before proceeding.
 
+## Definition of Ready (DoR) — Can Planning Start?
+
+- [ ] **Research exists** — Either a research doc (`@thoughts/shared/research/...`) or the user has provided sufficient context
+- [ ] **Goal is clear** — You can state the desired end state in concrete terms
+- [ ] **Research is committed** — If a research doc exists, it's committed to `main` (so worktrees can access it later)
+
+If no research exists and the task is complex (4+ files, unknowns), suggest `/research_codebase` or `/ralph_research` first.
+
 ## Planning Process
 
 ### Step 1: Read Everything First
@@ -215,9 +223,9 @@ After writing the plan:
 - Every behavior-changing phase MUST have Given/When/Then acceptance criteria
 - Include a complexity estimate (S/M/L) per phase
 
-## Definition of Ready (DoR)
+## Definition of Done (DoD) — Is the Plan Ready for Implementation?
 
-A plan is **Ready** for implementation when ALL of the following are met:
+A plan is **Done** (and meets implementation's DoR) when ALL of the following are met:
 
 - [ ] Every phase has a clear description of what changes
 - [ ] Every behavior-changing phase has Given/When/Then acceptance criteria
@@ -228,7 +236,8 @@ A plan is **Ready** for implementation when ALL of the following are met:
 - [ ] No "TBD" or "figure out later" items remain
 - [ ] An autonomous agent could implement this without asking questions
 
-**If the plan does not meet DoR, iterate before handing off to implementation.**
+**If the plan does not meet DoD, iterate before handing off to implementation.**
+The plan's DoD IS implementation's DoR — these gates chain.
 
 ## What NOT to Do
 

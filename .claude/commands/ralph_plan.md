@@ -26,6 +26,22 @@ bash scripts/setup-worktree-thoughts.sh "$(pwd)" "$(git rev-parse --git-common-d
 
 This ensures all plan docs are written to the shared canonical location, not siloed in the worktree.
 
+## Definition of Ready (DoR) — Can Planning Start?
+
+Before planning, verify ALL of the following:
+
+- [ ] **Research doc exists and is committed to `main`** — The `@<path>` reference resolves to a real file
+- [ ] **Research DoD is met** — All entry points identified, data flow traced, behavior described in user-observable terms, error modes cataloged, test infrastructure documented, open questions resolved or scoped out
+- [ ] **User has reviewed research findings** — Or at minimum, no unresolved blockers were flagged in the research doc
+- [ ] **Goal is clear** — You can state the desired end state in concrete, measurable terms
+
+If any DoR item fails, **STOP**. Report the gap:
+- Missing research doc → suggest `/ralph_research` first
+- Research incomplete → suggest another iteration of research
+- Goal unclear → ask the user to clarify
+
+**The plan's DoR IS the research's DoD.** These gates are designed to chain — if research was done properly, planning can start immediately.
+
 ## Autonomous Planning Process
 
 ### Iteration 1: Draft Structure
@@ -67,9 +83,9 @@ For each phase, define:
 - Verify all file paths still exist
 - Check that test commands are correct
 
-## Completion Criteria (Definition of Ready)
+## Definition of Done (DoD) — Is the Plan Ready for Implementation?
 
-A plan is **Ready** for `ralph_impl` when ALL of the following are met:
+A plan is **Done** (and therefore meets `ralph_impl`'s DoR) when ALL of the following are met:
 
 - [ ] Every phase has a clear, concise description of what changes
 - [ ] Every behavior-changing phase has Given/When/Then acceptance criteria
@@ -88,7 +104,8 @@ A plan is **Ready** for `ralph_impl` when ALL of the following are met:
 - [ ] Any API changes are classified as growth or breakage
 - [ ] Glossary updated: new terms added, renamed terms updated, deprecated terms removed (`thoughts/shared/glossary.md`)
 
-**If the plan does not meet the Definition of Ready, it should NOT be passed to `ralph_impl`.**
+**If the plan does not meet DoD, it should NOT be passed to `ralph_impl`.**
+The plan's DoD IS `ralph_impl`'s DoR. These gates chain — no artifact crosses a phase boundary until its DoD is met.
 Iterate until it does.
 
 ## Output Document

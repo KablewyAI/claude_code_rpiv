@@ -23,6 +23,27 @@ Independently verify that the implementation matches requirements and meets qual
 - DO NOT suggest improvements beyond blocking issues
 - DO NOT rewrite or refactor code
 
+## Definition of Ready (DoR) — Can Validation Start?
+
+- [ ] **Implementation is complete** — All plan phases are marked done, all tests pass
+- [ ] **Fresh agent context** — This is NOT the same session that implemented the code. Validation requires independent perspective
+- [ ] **Plan is accessible** — The `@<path>` reference resolves to the plan doc
+- [ ] **Clean working tree** — No uncommitted changes that would affect test results
+- [ ] **All verification commands pass** — Implementation's DoD should already guarantee this
+
+If any DoR item fails, **STOP**. In particular, if this is the same session that implemented the code, the validation is compromised — the implementer's biases carry over. Start a fresh session.
+
+## Definition of Done (DoD) — Is Validation Complete?
+
+- [ ] **Requirements checklist**: Every plan requirement verified present or absent
+- [ ] **Test quality reviewed**: Each new test evaluated for signal level (HIGH/MEDIUM/LOW)
+- [ ] **Security review completed**: No new injection vectors, auth boundaries intact
+- [ ] **Production failure modes checked**: Error differentiation, retry safety, appropriate status codes
+- [ ] **Verdict rendered**: PASS, PASS WITH NOTES, or FAIL with specific findings
+- [ ] **Report written**: `thoughts/shared/validations/YYYY-MM-DD_<topic>_validation.md`
+
+**Validation's DoD IS the ship gate.** A PASS means the code is ready for PR/merge. A FAIL means specific items must be fixed before re-validation.
+
 ## Inputs
 
 - Plan: `@<PATH_TO_PLAN_MD>`

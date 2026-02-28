@@ -14,6 +14,22 @@ You are doing **RESEARCH ONLY**. Do NOT implement. Do NOT write a plan.
 - DO NOT critique the implementation
 - ONLY describe what exists, where it exists, and how components work
 
+## Definition of Ready (DoR) — Can Research Start?
+
+- [ ] **Topic is specific**: A clear research question or area of interest (not "tell me about the codebase")
+- [ ] **Access confirmed**: You can read the relevant directories and files
+
+## Definition of Done (DoD) — Is Research Complete?
+
+- [ ] All relevant components identified with `file:line` references
+- [ ] Data flow traced for the topic area
+- [ ] Key patterns and conventions documented
+- [ ] Test commands identified
+- [ ] Open questions listed (if any)
+- [ ] Research doc written to `thoughts/shared/research/`
+
+**The research DoD feeds the plan's DoR.** An incomplete research doc leads to a plan built on assumptions.
+
 ## Initial Response
 
 If no specific question is provided:

@@ -90,6 +90,21 @@ Start by running `/ralph_research` with the task as the topic.
 
 ---
 
+## Quality Gates (DoR/DoD)
+
+Each phase has explicit Definition of Ready (DoR) and Definition of Done (DoD) gates. **Gates chain** — each phase's DoD IS the next phase's DoR:
+
+```
+Research DoD  →  Plan DoR
+Plan DoD      →  Impl DoR
+Impl DoD      →  Validation DoR
+Validation DoD → Ship gate
+```
+
+No artifact crosses a phase boundary until its DoD is met. In Ralph Mode, gates are evaluated automatically — the loop iterates until the gate passes.
+
+**Light tier** skips formal gates (no artifacts to gate). But even Light tasks state assumptions and get confirmation before implementing.
+
 ## Important
 
 - **One stage per session.** Don't chain research → plan → impl in the same session. Context degradation will hurt quality.
