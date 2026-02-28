@@ -454,7 +454,140 @@ These are the kinds of issues that ship to production when the implementer is to
 
 ---
 
+## Problem Framing: `/ralph`
+
+Before RPIV even starts, there's a step most people skip: **framing the problem correctly.**
+
+The `/ralph` command is the single entry point for all development tasks. Instead of jumping straight into research, it first asks: *how complex is this actually?*
+
+### The Complexity Assessment
+
+```
+## Complexity Assessment: STANDARD
+
+- Files: ~6 (estimated)
+- Pattern: partial — similar auth flow exists but not for WebAuthn
+- Arch decisions: 1 (token storage approach)
+- Risk: medium (auth changes can break all users)
+- Confidence: medium — clear goal, some implementation unknowns
+
+Multi-file auth change with one architectural decision. Standard pipeline.
+```
+
+| Signal | Light | Standard | Deep |
+|--------|-------|----------|------|
+| Files likely touched | 1-3 | 4-10 | 10+ or unknown |
+| Pattern exists | Clear precedent | Partial | No precedent |
+| Architectural decisions | None | 1-2 | Multiple |
+| Risk if wrong | Low (easy revert) | Medium | High (data loss, breaking) |
+| Confidence | High | Medium | Low |
+
+### Three Tiers, Three Workflows
+
+**Light** — Just do it. No research doc, no plan doc, no worktree. State assumptions in 3-5 bullets, get confirmation, implement, commit. For typos, small bugs, 1-3 file changes.
+
+**Standard** — Full RPIV pipeline: `/ralph_research` -> `/ralph_plan` -> `/launch_impl` -> `/ralph_impl` -> `/validate_plan` -> `/finish_impl`. For multi-file features, moderate unknowns.
+
+**Deep** — Full pipeline with adversarial review: adds `/first-principles-review` after research to challenge assumptions before planning. For new systems, architectural decisions, irreversible changes.
+
+### Why This Matters
+
+Without tier assessment, every task gets the same treatment. Small bug fixes get burdened with formal research docs. Complex architectural changes get "just do it" treatment. Both waste time — one through ceremony, the other through rework.
+
+The problem frame also forces a WHO/WHEN/STATUS QUO/WHY statement before any code exploration. This is the specification discipline applied to the *task itself* — making the AI state what it thinks the problem is before investigating, so its assumptions are visible and correctable.
+
+---
+
+## Worktree Lifecycle: `/launch_impl` + `/finish_impl`
+
+These two commands bookend the implementation phase and handle all the branch/worktree complexity so you don't have to.
+
+### The Problem They Solve
+
+In a multi-repo project, implementing a feature means:
+- Creating branches in multiple repos
+- Keeping them in sync
+- Not polluting your main working directory
+- Managing git worktrees correctly
+- Pushing branches, creating PRs, cross-linking them
+- Cleaning up afterward
+
+Doing this manually is error-prone and tedious. These commands + the worktree scripts automate it end-to-end.
+
+### `/launch_impl` — Set Up
+
+Takes a plan file, auto-detects which repos are needed (by scanning the plan for file path references), creates an isolated worktree environment, and gives you the exact commands to paste:
+
+```
+════════════════════════════════════════════════════════════
+  Ready to launch: user-notifications
+════════════════════════════════════════════════════════════
+
+  Paste this into a new terminal:
+
+    cd .claude/worktrees/user-notifications && claude --dangerously-skip-permissions
+
+  Then inside that session, run:
+
+    /ralph_impl @thoughts/shared/plans/2026-03-01_user-notifications_plan.md
+
+  When done, clean up:
+
+    ./scripts/cleanup-impl-worktree.sh user-notifications --delete-branches
+════════════════════════════════════════════════════════════
+```
+
+Key behaviors:
+- **Auto-detects repos**: Scans the plan for backend/frontend/desktop file references
+- **Commits plan to main first**: Ensures `@<path>` references resolve in the worktree
+- **Checks for existing worktrees**: Won't create duplicates
+- **Uses scripts**: `create-impl-worktree.sh` handles git worktree creation, branch setup, dependency installation, thoughts symlink
+
+### `/finish_impl` — Tear Down
+
+When implementation and validation are done, this command:
+
+1. **Validates readiness** — Reads `.worktree-info`, checks for clean working trees, verifies validation report status (blocks on FAIL)
+2. **Pushes branches** — Each sub-repo's feature branch gets pushed to remote
+3. **Creates PRs** — Generates PR bodies from the plan + validation report + diff, with proper structure (Summary, Changes by phase, Testing, Related artifacts)
+4. **Cross-links** — If multiple repos have PRs, each PR references the others
+5. **Commits validation** — Pushes the validation report to the main workspace
+
+What it does NOT do:
+- **Does NOT merge PRs** — Branch protection requires human approval on GitHub
+- **Does NOT deploy** — Requires explicit user permission
+- **Does NOT delete worktrees** — User does cleanup after merge
+
+### The Full Flow
+
+```
+Main branch                          Worktree
+──────────                           ────────
+/ralph_research
+/ralph_plan
+/commit (plan to main)
+/launch_impl ──────────────────────> Creates worktree
+                                     /ralph_impl (implement)
+                                     /validate_plan (verify)
+                                     /finish_impl (push + PRs)
+                                     ←──────────────────────
+Merge PRs on GitHub
+./scripts/cleanup-impl-worktree.sh
+```
+
+This separation is critical: research and planning happen on main (where they're committed and visible to future worktrees), while implementation happens in isolation (where experimental changes can't corrupt your working directory).
+
+---
+
 ## Command Reference
+
+### Problem Framing
+
+#### `/ralph` — Smart Entry Point
+```
+Assesses task complexity (Light/Standard/Deep), then executes or routes.
+Light: direct implementation. Standard: full RPIV. Deep: RPIV + adversarial review.
+```
 
 ### Research Phase
 
@@ -547,9 +680,17 @@ No AI attribution. Specific file staging. User confirms before commit.
 Summary, changes, testing, breaking changes, related artifacts.
 ```
 
+#### `/launch_impl` — Create Worktree Environment
+```
+Auto-detects repos from plan. Creates worktree with scripts/create-impl-worktree.sh.
+Commits plan to main first. Outputs exact commands to paste for the worktree session.
+```
+
 #### `/finish_impl` — Wrap Up Worktree
 ```
-Pushes branches, creates PRs for each sub-repo, cross-links them.
+Reads .worktree-info. Validates clean working trees and passing validation.
+Pushes branches. Creates PRs with plan/validation context. Cross-links multi-repo PRs.
+Does NOT merge (branch protection) or deploy (requires permission).
 ```
 
 ---
@@ -680,6 +821,58 @@ The validator has never seen the implementation reasoning. It only has the plan 
 - **Don't skip the security phase** — It's mandatory in validation
 - **Don't batch completions** — Mark things done as you go
 - **Don't run Ralph without limits** — Always set max iterations
+
+---
+
+## Glossary
+
+| Term | What It Is |
+|------|------------|
+| **RPIV** | Research -> Plan -> Implement -> Validate. The four-phase development methodology. |
+| **Ralph Mode** | Autonomous iteration within any RPIV phase. Named after Ralph Wiggum — relentlessly optimistic, keeps trying until done. |
+| **Tier** | Complexity level assessed by `/ralph`: Light (just do it), Standard (full RPIV), Deep (RPIV + adversarial review). |
+| **Problem Frame** | A WHO/WHEN/STATUS QUO/WHY statement written before investigation begins. Forces assumptions to be visible and correctable. |
+| **Thoughts** | The `thoughts/shared/` directory containing all research docs, plans, validations, and handoffs. The institutional memory of the project. |
+| **Artifact** | Any output document from an RPIV phase — research doc, plan, validation report, handoff. Artifacts feed into the next phase and serve as contracts. |
+| **Slug** | A short kebab-case identifier (e.g., `user-notifications`) that flows through the entire pipeline: plan filename -> worktree name -> branch name -> PR title. |
+| **Worktree** | A git worktree — an isolated copy of the repo with its own branch. Implementation happens here so experimental changes can't corrupt your main working directory. |
+| **Handoff** | A document capturing session context (tasks, changes, learnings, action items) so a fresh agent can continue where the previous one left off. |
+| **Validator** | A fresh agent context that independently verifies implementation against the plan. Never the same context that implemented the code — fresh perspective catches what the implementer rationalizes. |
+| **High-signal test** | A test that verifies actual behavior and would fail if the feature broke. Contrasted with low-signal tests that pass but assert nothing meaningful (e.g., `expect(result).toBeDefined()`). |
+| **Instruction budget** | The finite number of instructions (~150-250) an LLM can follow before accuracy degrades. Your CLAUDE.md consumes part of this budget on every request. |
+| **Nested CLAUDE.md** | A `CLAUDE.md` file in a subdirectory. Only loaded when Claude reads files in that directory. Keeps the root file lightweight while providing context-specific instructions where needed. |
+| **Hook** | A shell script that runs before a tool use (pre-tool-use hook). Enforces constraints 100% of the time, unlike CLAUDE.md instructions which can be ignored ~3% of the time. |
+
+### Key Commands at a Glance
+
+| Command | Phase | What It Does |
+|---------|-------|-------------|
+| `/ralph` | Entry | Assesses complexity, picks tier, routes to right workflow |
+| `/ralph_research` | Research | Autonomous codebase research — iterates until exhaustive |
+| `/ralph_plan` | Plan | Autonomous planning — stress-tests each phase, removes ambiguity |
+| `/launch_impl` | Setup | Creates isolated worktree, auto-detects repos, outputs launch commands |
+| `/ralph_impl` | Implement | Autonomous implementation — executes phases, auto-retries, commits per phase |
+| `/validate_plan` | Validate | Independent verification — fresh context, PASS/FAIL verdict |
+| `/finish_impl` | Ship | Pushes branches, creates cross-linked PRs, commits validation |
+| `/commit` | Git | Stages and commits with user approval, no AI attribution |
+| `/create_handoff` | Recovery | Saves session context for continuation by a fresh agent |
+| `/resume_handoff` | Recovery | Picks up where previous session left off |
+| `/debug` | Investigation | Read-only troubleshooting — reports findings, doesn't edit |
+| `/tdd` | Implement | Test-driven development: red -> green -> refactor -> report |
+| `/iterate_plan` | Plan | Updates existing plan with feedback without starting over |
+| `/describe_pr` | Git | Generates comprehensive PR description from changes |
+| `/research_codebase` | Research | Single-pass research (non-autonomous version) |
+| `/create_plan` | Plan | Interactive planning with user collaboration |
+| `/implement_plan` | Implement | Guided implementation (non-autonomous version) |
+| `/creative_thinking` | Ideation | Structured creative thinking using metacognitive strategies |
+
+### Key Scripts
+
+| Script | What It Does |
+|--------|-------------|
+| `scripts/create-impl-worktree.sh` | Creates isolated worktree environment with sub-repo branches, dependency installation, and thoughts symlink |
+| `scripts/cleanup-impl-worktree.sh` | Removes worktree and optionally deletes feature branches (use after PR merge) |
+| `scripts/setup-worktree-thoughts.sh` | Symlinks `thoughts/shared/` in a worktree to the main repo's canonical copy |
 
 ---
 
