@@ -100,6 +100,100 @@ In practice, validators catch:
 
 ---
 
+## Your CLAUDE.md Is Your Highest Leverage
+
+RPIV gives you the pipeline. But the thing that sits *above* the pipeline — affecting every phase — is your `CLAUDE.md` file.
+
+### The Leverage Hierarchy
+
+```
+  CLAUDE.md          1 bad line  →  cascades into everything below
+    ↓
+  Specification      1 bad line  →  many bad lines of research
+    ↓
+  Research           1 bad line  →  many bad lines of plan
+    ↓
+  Plan               1 bad line  →  hundreds of bad lines of code
+    ↓
+  Code               1 bad line  →  1 bad line of code
+```
+
+Your `CLAUDE.md` is loaded on **every single request**. It's the one thing you control that has the highest leverage after the model itself. One unnecessary or misleading line here can silently degrade everything downstream.
+
+### The Instruction Budget
+
+LLMs have a finite instruction-following capacity. Research shows accuracy degrades after roughly 150-250 instructions (depending on the model). The Claude Code system prompt uses about 50. That leaves approximately **200 instructions** for your `CLAUDE.md` + your plan + your prompt + anything else the agent reads.
+
+This means every line of your `CLAUDE.md` is competing for a limited budget. Lines that don't pull their weight aren't just wasted — they're actively harmful, displacing instructions that matter.
+
+### How to Write a Good CLAUDE.md
+
+**Start small.** A new project's `CLAUDE.md` might be 10 lines: project description, key commands, one or two constraints that aren't obvious from the code. That's it.
+
+**Add reactively.** When the model makes a specific mistake, add a rule to prevent it. When it doesn't make mistakes, don't add rules "just in case." Every rule you add that the model already follows natively is a wasted instruction.
+
+**Remove proactively.** With every model release, audit your `CLAUDE.md` and remove instructions that newer models handle natively. If you wrote "always use TypeScript strict mode" for an older model that kept using `any`, the newer model probably doesn't need that reminder. Over-constraining a capable model makes it perform *worse* — you're overriding its better built-in practices with your potentially outdated ones.
+
+**Use hooks instead of instructions.** If you write "never run `db push`" in your `CLAUDE.md`, the model will respect it ~97% of the time. If you write a pre-tool-use hook that blocks `db push`, it works 100% of the time. Convert hard constraints into hooks (see `.claude/hooks/`).
+
+**Position matters.** LLMs weigh the beginning and end of instructions more than the middle. Put project description and key commands at the top. Put rarely-needed context in nested `CLAUDE.md` files.
+
+### Split Into Nested CLAUDE.md Files
+
+Your root `CLAUDE.md` is always loaded. But Claude Code also reads `CLAUDE.md` files from subdirectories when it reads files in those directories. This means:
+
+```
+project/
+├── CLAUDE.md                    # Always loaded (keep lightweight)
+├── backend/
+│   └── CLAUDE.md                # Loaded when reading backend/ files
+├── database/migrations/
+│   └── CLAUDE.md                # Loaded when reading migration files
+└── frontend/
+    └── CLAUDE.md                # Loaded when reading frontend/ files
+```
+
+**Root `CLAUDE.md`**: Project overview, key commands, universal constraints. Keep it under 50 lines.
+
+**Nested `CLAUDE.md` files**: Context-specific instructions. Migration workflows go in the database directory. API conventions go in the API directory. Build instructions go in the build directory. These are lazy-loaded — they only consume instruction budget when Claude is actually working in that part of the codebase.
+
+This is powerful because your root `CLAUDE.md` can fade from attention late in a long conversation, but a nested `CLAUDE.md` is injected at exactly the right moment — when the model is reading files in that directory.
+
+### What Does NOT Belong in CLAUDE.md
+
+- **Things the model already knows**: "Use encryption for passwords," "validate user input," "handle errors gracefully." These waste instruction budget on things baked into the model.
+- **Example code**: The model can read your actual codebase. Don't duplicate it.
+- **Detailed API documentation**: Put it in a nested `CLAUDE.md` near the relevant code.
+- **History of changes**: This isn't a changelog. Remove stale entries.
+- **Random prompt tips from the internet**: Most viral tips add instructions the model already follows, or constrain it in ways that make it worse.
+
+### The Audit Cycle
+
+1. **On every model release**: Review each line. Can you remove it? Newer models may handle it natively.
+2. **Weekly**: Check for conflicting instructions, outdated entries, things that should be in nested files.
+3. **Version control**: Commit every `CLAUDE.md` change to git. If the model starts performing worse, you can `git bisect` to find which line caused it.
+
+See `CLAUDE.md.template` for a ready-to-use starting point that embodies these principles.
+
+### Auto-Memory vs CLAUDE.md
+
+Claude Code has an auto-memory feature that stores per-user notes in `~/.claude/projects/<path>/memory/MEMORY.md`. This is loaded into context alongside your `CLAUDE.md`.
+
+Key differences:
+
+| | `CLAUDE.md` | Auto-Memory (`MEMORY.md`) |
+|---|---|---|
+| **Scope** | Shared (committed to git) | Personal (per-user, per-machine) |
+| **Purpose** | Project conventions & constraints | User preferences & session learnings |
+| **Management** | Manual, deliberate edits | Auto-updated by Claude (review periodically) |
+| **Team use** | Everyone sees the same instructions | Each team member has their own |
+
+**Best practice**: Manually review auto-memory periodically. The model doesn't always have the introspectiveness to decide what's truly worth remembering. Move architecture-level insights into your `CLAUDE.md` (shared with the team). Keep personal preferences (verbosity, explanation depth) in auto-memory.
+
+You can also use `CLAUDE.local.md` for personal project-specific preferences that shouldn't be committed to git (add it to `.gitignore`).
+
+---
+
 ## What is RPIV?
 
 **RPIV** = **R**esearch -> **P**lan -> **I**mplement -> **V**alidate

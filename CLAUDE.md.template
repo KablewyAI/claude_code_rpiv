@@ -1,77 +1,96 @@
 # CLAUDE.md
 
-<!-- Copy this file to CLAUDE.md in your project root and customize it. -->
-<!-- This is the primary instruction file for Claude Code. Everything here -->
-<!-- overrides default behavior. Be specific and opinionated. -->
+<!--
+  HOW TO USE THIS TEMPLATE
+  ========================
+  1. Copy this file to CLAUDE.md in your project root
+  2. Fill in ONLY the sections that apply to your project
+  3. Delete everything else — including these comments
+  4. Start small. Add rules ONLY when the model makes a specific mistake.
+  5. Audit this file on every model release. Remove rules newer models handle natively.
 
-## Critical Constraints
+  WHY THIS MATTERS
+  ================
+  Your CLAUDE.md sits at the top of the leverage hierarchy:
 
-<!-- Add your project's non-negotiable rules here. Examples: -->
-<!-- 1. **Never deploy without explicit permission.** -->
-<!-- 2. **API keys are server-side only.** Never propose client-side usage. -->
-<!-- 3. **Always run tests before committing.** -->
+    CLAUDE.md  →  specification  →  research  →  plan  →  code
 
-## Code Standards
+  One bad line here cascades into hundreds of bad lines of code.
+  But one UNNECESSARY line here wastes instruction budget and can
+  actually make the model perform WORSE by over-constraining it.
 
-<!-- Describe your project's coding conventions. Examples: -->
-<!-- - TypeScript-first. Always prefer TS idioms and types. -->
-<!-- - Use existing patterns. Check how similar code is written before adding new code. -->
+  LLMs degrade after ~150-250 instructions. The Claude Code system
+  prompt uses ~50. That leaves ~200 for your CLAUDE.md + plan + prompt.
+  Every line must earn its place.
 
-## Workflow Rules
+  PRINCIPLES
+  ==========
+  - Start with project description + key commands. That's it.
+  - Add rules reactively: model made a mistake? Add a rule. Otherwise don't.
+  - Prefer hooks over instructions for constraints (hooks enforce 100%, instructions ~97%)
+  - Split into nested CLAUDE.md files in subdirectories (lazy-loaded, not always in context)
+  - Don't teach the model things it already knows (encryption, git basics, common patterns)
+  - With each model upgrade, REMOVE instructions. New models have better built-in practices.
+  - Commit every CLAUDE.md change to git so you can trace what caused regressions.
 
-- **Research before implementing**: For tasks touching 3+ files: Research -> Plan -> Implement -> Validate. Do NOT skip research.
-- **Debugging protocol** (MANDATORY for bugs): (1) State hypothesis, (2) Trace execution path with file:line refs, (3) Rule out alternatives, (4) Verify fix location executes in reported scenario, (5) Close the loop after implementing.
-- **State assumptions before investigating**: For ANY task: write down what you believe BEFORE looking at code. This makes assumptions visible and prevents anchoring on the first plausible explanation.
-- **Bug fixes**: Verify the ACTUAL data flow end-to-end. Don't assume fixing one layer is sufficient.
-- **File editing**: Re-read files before editing to avoid stale content failures.
+  STRUCTURE (positioning matters — LLMs weigh beginning and end more)
+  ==========
+  1. Project description (top — always loaded, sets the frame)
+  2. Key commands (near top — frequently referenced)
+  3. Critical constraints (things that are NOT obvious from the codebase)
+  4. Architecture notes (only what can't be inferred from code)
+  5. Workflow rules (pipeline, branching, deploy)
 
-## Development Workflows (Ralph Pipeline)
+  WHAT DOES NOT BELONG HERE
+  =========================
+  - Things the model already knows (use encryption, validate input, etc.)
+  - Detailed API docs (put in nested CLAUDE.md near the relevant code)
+  - Migration guides (put in the database directory's CLAUDE.md)
+  - Example code (the model can read your actual code)
+  - History of changes (this isn't a changelog)
+  - Random prompt tips from Twitter
+-->
 
-| Command | Input | Output |
-|---------|-------|--------|
-| `/ralph_research <topic>` | Topic/question | `thoughts/shared/research/YYYY-MM-DD_<topic>.md` |
-| `/ralph_plan @<research.md>` | Research doc | `thoughts/shared/plans/YYYY-MM-DD_<topic>_plan.md` |
-| `/ralph_impl @<plan.md>` | Plan doc | Commits per phase, TDD cycle |
-| `/validate_plan @<plan.md>` | Plan doc | `thoughts/shared/validations/YYYY-MM-DD_<topic>.md` |
-| `/finish_impl` | (auto-detects) | Pushed branches, PRs, summary |
+## Project
 
-Other: `/iterate_plan`, `/resume_handoff`, `/create_handoff`, `/commit`, `/describe_pr`, `/research_codebase`, `/debug`
+<!-- 2-3 sentences. What is this? Why does it exist? What's the tech stack? -->
+<!-- This frames every decision the model makes. Be precise. -->
 
-**CRITICAL ORDERING RULE**: Plans must be committed to main BEFORE creating a worktree -- `@<path>` refs resolve at invocation time.
-
-**Naming convention**: Plan file slug -> worktree name -> branch name -> PR title. One slug flows through the entire pipeline.
-
-## Overview
-
-<!-- Describe your project structure here. Examples: -->
-<!-- - **backend** -- Express/Hono/Django API server -->
-<!-- - **frontend** -- React/Vue/Lit frontend -->
-
-**Thoughts**: All go in root `thoughts/shared/` only. Never nest.
-
-## Quick Start
+## Commands
 
 ```bash
-# Add your dev commands here
+# Dev
 # npm run dev
+
+# Test
 # npm test
+
+# Type check
+# npx tsc --noEmit
 ```
 
-## Architecture
+## Constraints
 
-<!-- Describe your key architectural decisions. -->
-<!-- Database, API structure, auth approach, etc. -->
+<!-- ONLY things that are NOT obvious from the codebase. Examples: -->
+<!-- - Never deploy without explicit permission -->
+<!-- - API keys are server-side only -->
+<!-- - Use npm, not pnpm or bun -->
+<!-- If a constraint can be enforced with a hook, use a hook instead (see .claude/hooks/) -->
 
-## Branching & Deployment
+## Workflow
 
-`main` is always deployable. Prefixes: `feature/*`, `bugfix/*`, `experiment/*`.
+- For tasks touching 3+ files: `/ralph_research` -> `/ralph_plan` -> `/ralph_impl` -> `/validate_plan`
+- Debugging: State hypothesis -> Trace with file:line refs -> Rule out alternatives -> Verify fix location -> Close loop
 
-<!-- Add your deploy commands and predeployment checklist. -->
+| Command | Output |
+|---------|--------|
+| `/ralph_research <topic>` | `thoughts/shared/research/YYYY-MM-DD_<topic>.md` |
+| `/ralph_plan @<research>` | `thoughts/shared/plans/YYYY-MM-DD_<topic>_plan.md` |
+| `/ralph_impl @<plan>` | Commits per phase |
+| `/validate_plan @<plan>` | `thoughts/shared/validations/YYYY-MM-DD_<topic>.md` |
 
 ## Key Directories
 
-<!-- Map out your most important directories. Examples: -->
-<!-- - **API routes**: `src/routes/` -->
-<!-- - **Components**: `src/components/` -->
-<!-- - **Tests**: `tests/` -->
-<!-- - **Thoughts**: `thoughts/shared/` (root only) -->
+<!-- Only list directories that aren't obvious from the project structure -->
+<!-- - **API**: `src/routes/` -->
+<!-- - **Thoughts**: `thoughts/shared/` -->
