@@ -8,10 +8,23 @@ You are tasked with creating git commits for changes made during this session.
 
 ## Process
 
+### 0. Detect Worktree Context
+Check if running in a worktree with sub-repos:
+```bash
+cat .worktree-info 2>/dev/null
+```
+If `.worktree-info` exists, parse `slug`, `prefix`, `repos`, and `main_repo`. All git operations must target **each sub-repo**:
+```bash
+# For each repo in .worktree-info repos list:
+cd <worktree-dir>/<project>-<repo>
+git status / git diff / git add / git commit
+```
+If `.worktree-info` does NOT exist, you are on main — run all commands in the current directory as normal.
+
 ### 1. Understand What Changed
 - Review conversation history and understand what was accomplished
-- Run `git status` to see current changes
-- Run `git diff` to understand modifications
+- Run `git status` in each sub-repo (if worktree) or current directory to see changes
+- Run `git diff` in each sub-repo (if worktree) or current directory to understand modifications
 - Consider whether changes should be one commit or multiple logical commits
 
 ### 2. Plan Your Commit(s)
@@ -55,7 +68,10 @@ I plan to create 2 commit(s) with these changes. Shall I proceed?
 Wait for user confirmation.
 
 ### 4. Execute Upon Confirmation
+If in a worktree, `cd` to the appropriate sub-repo before running git commands:
 ```bash
+# If in worktree: cd <worktree-dir>/<project>-<repo>
+
 # Add specific files (NEVER use -A or .)
 git add src/components/Feature.js src/components/Feature.test.js
 
@@ -66,7 +82,7 @@ git commit -m "Add Feature component with test coverage"
 git log --oneline -n 2
 ```
 
-Repeat for each planned commit.
+Repeat for each planned commit. If in a worktree with multiple sub-repos, commit in each sub-repo that has changes.
 
 ### 5. Report Results
 ```

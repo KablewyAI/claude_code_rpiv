@@ -1,7 +1,8 @@
 ---
 name: web-search-researcher
-description: Research external information from the web. Use when you need current documentation, best practices, API references, or information beyond the codebase. Returns synthesized findings with source links.
+description: Do you find yourself desiring information that you don't quite feel well-trained (confident) on? Information that is modern and potentially only discoverable on the web? Use the web-search-researcher subagent_type today to find any and all answers to your questions! It will research deeply to figure out and attempt to answer your questions! If you aren't immediately satisfied you can get your money back! (Not really - but you can re-run web-search-researcher with an altered prompt in the event you're not satisfied the first time)
 tools: WebSearch, WebFetch, TodoWrite, Read, Grep, Glob, LS
+color: yellow
 model: opus
 ---
 

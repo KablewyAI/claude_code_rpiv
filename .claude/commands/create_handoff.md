@@ -42,6 +42,7 @@ date: <ISO8601 with timezone>
 topic: <short topic>
 status: active
 branch: <branch name>
+worktree: <worktree name if in a worktree, otherwise omit>
 git_commit: <commit hash>
 repository: <repo name>
 tags: [handoff, <feature-area>]

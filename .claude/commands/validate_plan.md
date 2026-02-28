@@ -36,6 +36,27 @@ If no plan provided:
 
 If plan provided, proceed with validation.
 
+## Pre-Flight
+
+**Worktree thoughts symlink** — If in a worktree, ensure `thoughts/shared/` is symlinked:
+```bash
+bash scripts/setup-worktree-thoughts.sh "$(pwd)" "$(git rev-parse --git-common-dir | sed 's|/\.git$||')"
+```
+
+**Plan file existence check** — If the `@<path>` input didn't resolve (empty or missing), the plan was likely not committed to main before this worktree was created. Run the symlink script first. If still missing, STOP and report that the plan needs to be committed to main and the worktree recreated from the updated HEAD.
+
+**Worktree sub-repo detection** — Check if running in a worktree with sub-repos:
+```bash
+cat .worktree-info 2>/dev/null
+```
+If `.worktree-info` exists, parse `slug`, `prefix`, `repos`, and `main_repo`. All git and test operations must target **each sub-repo**:
+```bash
+# For each repo in .worktree-info repos list:
+cd <worktree-dir>/<project>-<repo>
+git status / git diff / git log / git branch / npm test
+```
+If `.worktree-info` does NOT exist, you are on main — run all commands in the current directory as normal.
+
 ## Validation Process
 
 ### Step 1: Read and Understand
@@ -47,8 +68,8 @@ If plan provided, proceed with validation.
 ### Step 2: Gather Evidence
 Spawn parallel investigations:
 
-- **Code Changes**: `git diff` or compare against plan
-- **Test Status**: Run the test suite
+- **Code Changes**: If in a worktree (`.worktree-info` exists), run `git diff main..<branch>` and `git log main..<branch> --oneline` in **each sub-repo**. Otherwise, run `git diff` in the current directory.
+- **Test Status**: If in a worktree, run `npm test` in **each sub-repo**. Otherwise, run in the current directory.
 - **Code Quality**: Check for debug logs, TODOs, unused code
 
 Use sub-agents for deep inspection:
@@ -154,7 +175,47 @@ test('handles empty array', () => {
 - [ ] No XSS vulnerabilities in frontend changes
 - [ ] Authentication/authorization appropriate
 
-### Step 5: Generate Report
+### Step 6: Production Failure Mode Review (MANDATORY)
+
+For every code path that calls an external dependency (database, API, cache, queue), verify:
+
+- [ ] **Error differentiation**: Does the code distinguish "dependency unavailable" (503) from "bad user input" (400/401)? A database outage should NOT return "Authentication failed" or "Invalid input".
+- [ ] **Retry safety**: Could the error response cause callers to retry aggressively? (e.g., returning 401 for a DB outage makes users re-enter credentials repeatedly, hammering the DB during recovery)
+- [ ] **Appropriate status codes**: Service failures use 503 (not 500 or 401). Includes `Retry-After` header where applicable.
+- [ ] **Graceful degradation**: Where possible, the code degrades rather than fails completely (cached data, reduced functionality, informative error messages).
+- [ ] **Catch blocks are specific**: Generic `catch (error) { return 500 }` blocks that swallow the error type are flagged. Different error types should produce different responses.
+
+**Common anti-patterns to flag (BLOCKING):**
+```javascript
+// BAD: DB down looks like auth failure — causes retry storm
+catch (error) {
+  return res.status(401).json({ error: 'Authentication failed' });
+}
+
+// BAD: All errors look the same — impossible to debug at 3 AM
+catch (error) {
+  return res.status(500).json({ error: 'Something went wrong' });
+}
+
+// GOOD: Error differentiation
+catch (error) {
+  if (error.name === 'TokenExpiredError') {
+    return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
+  }
+  if (error.code === 'ECONNREFUSED' || error.name === 'DatabaseError') {
+    logger.error('Service dependency failure', { error });
+    return res.status(503).json({ error: 'Service temporarily unavailable' });
+  }
+  // ...
+}
+```
+
+**Verdict impact:**
+- Missing error differentiation on a code path that handles user auth or payment = **BLOCKING**
+- Generic catch-all on internal-only code path = **NON-BLOCKING** observation
+- No dependency failure tests for code that calls external services = **BLOCKING**
+
+### Step 7: Generate Report
 
 Write to: `thoughts/shared/validations/YYYY-MM-DD_<short-topic>_validation.md`
 
@@ -167,6 +228,7 @@ topic: <short topic>
 status: <PASS | PASS WITH NOTES | FAIL>
 plan: <path to plan file>
 branch: <branch name>
+worktree: <worktree name if in a worktree, otherwise omit>
 git_commit: <commit hash>
 ---
 
@@ -226,6 +288,16 @@ git_commit: <commit hash>
 - [ ] No injection vulnerabilities
 - [ ] Auth/authz appropriate
 
+## Production Failure Mode Checks
+- [ ] Error responses differentiate dependency failures (503) from user errors (400/401)
+- [ ] No generic catch-all blocks that mask error types on user-facing code paths
+- [ ] Dependency failures won't trigger retry storms (no 401 for DB outage)
+- [ ] Appropriate status codes used (503 for service issues, not 500)
+- [ ] Failure mode tests exist for code paths calling external dependencies
+
+**Issues found**:
+- [List specific catch blocks or error paths that fail these checks, or "None"]
+
 ## Final Verdict
 
 **VERDICT: [PASS | PASS WITH NOTES | FAIL]**
@@ -258,6 +330,7 @@ git_commit: <commit hash>
 - Tests are low-signal or missing (pass but don't verify behavior)
 - Blocking issues identified
 - Security vulnerabilities found
+- Production failure mode issues on user-facing code paths (error masking, retry storms)
 - Must be fixed before proceeding
 
 ## Key Guidelines

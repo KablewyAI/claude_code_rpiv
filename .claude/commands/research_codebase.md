@@ -70,6 +70,7 @@ date: <ISO8601 with timezone>
 topic: <short topic>
 status: complete
 branch: <current branch name>
+worktree: <worktree name if in a worktree, otherwise omit>
 git_commit: <current commit hash>
 repository: <repo name>
 tags: [research, <feature-area>, <key-components>]

@@ -1,0 +1,77 @@
+# CLAUDE.md
+
+<!-- Copy this file to CLAUDE.md in your project root and customize it. -->
+<!-- This is the primary instruction file for Claude Code. Everything here -->
+<!-- overrides default behavior. Be specific and opinionated. -->
+
+## Critical Constraints
+
+<!-- Add your project's non-negotiable rules here. Examples: -->
+<!-- 1. **Never deploy without explicit permission.** -->
+<!-- 2. **API keys are server-side only.** Never propose client-side usage. -->
+<!-- 3. **Always run tests before committing.** -->
+
+## Code Standards
+
+<!-- Describe your project's coding conventions. Examples: -->
+<!-- - TypeScript-first. Always prefer TS idioms and types. -->
+<!-- - Use existing patterns. Check how similar code is written before adding new code. -->
+
+## Workflow Rules
+
+- **Research before implementing**: For tasks touching 3+ files: Research -> Plan -> Implement -> Validate. Do NOT skip research.
+- **Debugging protocol** (MANDATORY for bugs): (1) State hypothesis, (2) Trace execution path with file:line refs, (3) Rule out alternatives, (4) Verify fix location executes in reported scenario, (5) Close the loop after implementing.
+- **State assumptions before investigating**: For ANY task: write down what you believe BEFORE looking at code. This makes assumptions visible and prevents anchoring on the first plausible explanation.
+- **Bug fixes**: Verify the ACTUAL data flow end-to-end. Don't assume fixing one layer is sufficient.
+- **File editing**: Re-read files before editing to avoid stale content failures.
+
+## Development Workflows (Ralph Pipeline)
+
+| Command | Input | Output |
+|---------|-------|--------|
+| `/ralph_research <topic>` | Topic/question | `thoughts/shared/research/YYYY-MM-DD_<topic>.md` |
+| `/ralph_plan @<research.md>` | Research doc | `thoughts/shared/plans/YYYY-MM-DD_<topic>_plan.md` |
+| `/ralph_impl @<plan.md>` | Plan doc | Commits per phase, TDD cycle |
+| `/validate_plan @<plan.md>` | Plan doc | `thoughts/shared/validations/YYYY-MM-DD_<topic>.md` |
+| `/finish_impl` | (auto-detects) | Pushed branches, PRs, summary |
+
+Other: `/iterate_plan`, `/resume_handoff`, `/create_handoff`, `/commit`, `/describe_pr`, `/research_codebase`, `/debug`
+
+**CRITICAL ORDERING RULE**: Plans must be committed to main BEFORE creating a worktree -- `@<path>` refs resolve at invocation time.
+
+**Naming convention**: Plan file slug -> worktree name -> branch name -> PR title. One slug flows through the entire pipeline.
+
+## Overview
+
+<!-- Describe your project structure here. Examples: -->
+<!-- - **backend** -- Express/Hono/Django API server -->
+<!-- - **frontend** -- React/Vue/Lit frontend -->
+
+**Thoughts**: All go in root `thoughts/shared/` only. Never nest.
+
+## Quick Start
+
+```bash
+# Add your dev commands here
+# npm run dev
+# npm test
+```
+
+## Architecture
+
+<!-- Describe your key architectural decisions. -->
+<!-- Database, API structure, auth approach, etc. -->
+
+## Branching & Deployment
+
+`main` is always deployable. Prefixes: `feature/*`, `bugfix/*`, `experiment/*`.
+
+<!-- Add your deploy commands and predeployment checklist. -->
+
+## Key Directories
+
+<!-- Map out your most important directories. Examples: -->
+<!-- - **API routes**: `src/routes/` -->
+<!-- - **Components**: `src/components/` -->
+<!-- - **Tests**: `tests/` -->
+<!-- - **Thoughts**: `thoughts/shared/` (root only) -->

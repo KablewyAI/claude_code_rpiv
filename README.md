@@ -1,34 +1,136 @@
-# Claude Code RPIV + Ralph Loop
+# Claude Code RPIV
 
-A structured methodology for AI-assisted development that separates research, planning, implementation, and validation into distinct phases—with optional autonomous "Ralph Mode" for hands-off iteration.
+A battle-tested methodology for AI-assisted software development. Separates research, planning, implementation, and validation into distinct phases with autonomous "Ralph Mode" for hands-off iteration.
+
+**The core thesis: quality of output is directly tied to the quality of specification.**
+
+When you tell an AI "add feature X," you're giving it an underspecified problem. It will fill in the gaps with assumptions — about your architecture, your conventions, your edge cases, your preferences. Some assumptions will be wrong. The resulting code will *work*, but it won't be *right*. RPIV exists to eliminate that gap between "works" and "right" by forcing specification to happen before implementation.
 
 **Adapted from:**
-- [No Vibes Allowed: Solving Hard Problems in Complex Codebases – Dex Horthy, HumanLayer](https://www.youtube.com/watch?v=rmvDxxNubIg) (AI Engineering Summit 2025)
+- [No Vibes Allowed: Solving Hard Problems in Complex Codebases](https://www.youtube.com/watch?v=rmvDxxNubIg) — Dex Horthy, HumanLayer (AI Engineering Summit 2025)
 - [HumanLayer's Claude Code setup](https://github.com/humanlayer/humanlayer/tree/main/.claude)
 - [Ralph Wiggum Autonomous Loops](https://www.humanlayer.dev/blog/brief-history-of-ralph)
 
 ---
 
+## Why This System Exists
+
+### The Specification Problem
+
+Most AI coding failures aren't intelligence failures — they're *specification* failures. The AI is smart enough to build what you ask for. The problem is that what you *ask for* and what you *actually need* are often different things.
+
+Consider: "Add a delete button to the user profile page."
+
+An AI hearing this will:
+1. Find the profile page
+2. Add a button
+3. Wire it to a delete endpoint
+4. Maybe add a confirmation dialog
+5. Ship it
+
+What it won't think about:
+- Does your app use soft deletes or hard deletes?
+- What happens to the user's data in other tables?
+- Is there an admin audit trail requirement?
+- Does your design system have a destructive-action button variant?
+- Do you need to send a confirmation email?
+- What about GDPR data deletion requirements?
+- Does the user need to re-authenticate before deletion?
+- What's the error state if deletion fails?
+
+Each of these is an assumption the AI will make *silently*. Some will be right. Some will be wrong. You won't know which until you review the PR — and by then, the AI has already committed to an architecture that may be hard to undo.
+
+**RPIV forces these assumptions to become explicit *before* a single line of code is written.**
+
+### Why Phases Matter
+
+When humans solve complex problems, we naturally separate thinking from doing. An architect doesn't start laying bricks while still deciding the floor plan. A surgeon doesn't cut while still reading the MRI. But when we work with AI, we collapse everything into a single prompt: "do this thing."
+
+The research shows this doesn't work well:
+
+- **Context contamination**: When an AI researches and implements simultaneously, its early findings bias its later investigation. It anchors on the first plausible approach and stops looking.
+- **Sunk cost in code**: Once the AI has written 200 lines toward approach A, it's psychologically committed (and you've burned the tokens). It won't pivot to approach B even if B is clearly better.
+- **Invisible assumptions**: Without a written plan, the AI's decisions are embedded in code. You can only review them by reverse-engineering the implementation — which is exactly the kind of work you hired the AI to avoid.
+- **No objective verification**: The agent that wrote the code is constitutionally incapable of objectively reviewing it. It has all the context that makes its choices seem reasonable, including the reasoning it used to dismiss edge cases.
+
+RPIV solves these by making each phase a discrete step with its own artifact:
+
+| Phase | What It Does | Why It Matters |
+|-------|-------------|----------------|
+| **Research** | Documents how the codebase works *today* | Eliminates assumptions about existing architecture |
+| **Plan** | Designs small, verifiable phases with explicit verification steps | Makes every decision reviewable *before* code exists |
+| **Implement** | Executes the plan exactly, verifying each phase | Prevents drift from the agreed-upon approach |
+| **Validate** | Fresh agent independently verifies against requirements | Catches what the implementer rationalizes away |
+
+### The Compound Effect
+
+Each artifact feeds the next:
+- Research informs planning (no guessing about architecture)
+- Plans constrain implementation (no improvisation)
+- Implementation generates artifacts for validation (test results, diffs)
+- Validation catches deviations before they reach `main`
+
+Over time, these artifacts accumulate into an institutional memory:
+- New team members (human or AI) can read past research docs
+- Plans serve as architectural decision records (ADRs)
+- Validation reports document what was checked and when
+- Handoffs enable seamless session continuation
+
+**The result: every significant change has a paper trail from "why" to "what" to "does it work."**
+
+### Why Separate Validator from Implementer?
+
+This is the single most impactful practice in the entire system. From [Anthropic's Claude Code Best Practices](https://www.anthropic.com/engineering/claude-code-best-practices):
+
+> "A simple but effective approach is to have one Claude write code while another reviews or tests it. Sometimes having separate context is beneficial."
+
+The implementer suffers from three biases:
+1. **Confirmation bias**: "I know this works because I just wrote it"
+2. **Context bias**: "This edge case doesn't apply because..." (citing reasoning the validator can't see)
+3. **Completeness illusion**: "The tests prove it's correct" (but do they test what matters?)
+
+The validator starts with *only* the plan's requirements. It reads the implementation cold. It runs tests without assumptions. It's looking for gaps between "what was promised" and "what was delivered."
+
+In practice, validators catch:
+- Tests that pass but assert nothing meaningful (mocking everything, testing implementation details)
+- Missing error handling on failure paths
+- Security issues the implementer didn't think about
+- Requirements from the plan that were accidentally skipped
+- Production failure modes (returning 401 when the database is down)
+
+---
+
 ## What is RPIV?
 
-**RPIV** = **R**esearch → **P**lan → **I**mplement → **V**alidate
+**RPIV** = **R**esearch -> **P**lan -> **I**mplement -> **V**alidate
 
-The core insight: **separating concerns reduces errors**. When an AI agent tries to research, plan, and implement simultaneously, it makes mistakes. RPIV enforces discipline:
-
-| Phase | Focus | Output |
-|-------|-------|--------|
-| **Research** | Understand the codebase *today* | `thoughts/shared/research/*.md` |
-| **Plan** | Design small, verifiable phases | `thoughts/shared/plans/*.md` |
-| **Implement** | Execute the plan exactly | Working code + passing tests |
-| **Validate** | Independent verification | `thoughts/shared/validations/*.md` |
-
-Each phase produces artifacts that feed into the next, creating an auditable trail and enabling handoffs between sessions.
+```
+                    ┌─────────────┐
+                    │   Research   │  Understand the codebase today
+                    │              │  Output: research doc
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │    Plan      │  Design verifiable phases
+                    │              │  Output: plan doc (committed to main)
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Implement   │  Execute plan in isolated worktree
+                    │              │  Output: code + passing tests
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Validate    │  Independent verification (fresh context)
+                    │              │  Output: PASS / FAIL verdict
+                    └─────────────┘
+```
 
 ---
 
 ## What is Ralph Mode?
 
-**Ralph Mode** adds autonomous iteration to RPIV. Named after Ralph Wiggum from The Simpsons ("dim-witted but relentlessly optimistic and undeterred"), it keeps trying until the job is done.
+**Ralph Mode** adds autonomous iteration to each RPIV phase. Named after Ralph Wiggum from The Simpsons ("dim-witted but relentlessly optimistic and undeterred"), it keeps trying until the job is done.
 
 | Standard RPIV | Ralph Mode |
 |---------------|------------|
@@ -41,19 +143,108 @@ Each phase produces artifacts that feed into the next, creating an auditable tra
 
 ---
 
+## What's Included
+
+This repo is a ready-to-use seed for any project. It includes:
+
+### Agents (7 custom sub-agents)
+Specialized agents that follow the "documentarian, not critic" principle — they describe what IS, not what SHOULD BE.
+
+| Agent | Purpose |
+|-------|---------|
+| `codebase-analyzer` | Deep analysis of implementation details and data flow |
+| `codebase-locator` | Find files by feature/topic ("Super Grep/Glob") |
+| `codebase-pattern-finder` | Find similar implementations with concrete code examples |
+| `validation-reviewer` | Review changes against criteria, PASS/FAIL verdicts |
+| `websearch-researcher` | Web research for up-to-date information |
+| `thoughts-analyzer` | Deep analysis of thoughts/ documents |
+| `thoughts-locator` | Find relevant documents in thoughts/ directory |
+
+### Commands (18 slash commands)
+
+**Core RPIV Pipeline:**
+- `/research_codebase` — Single-pass codebase research
+- `/create_plan` — Interactive planning with user collaboration
+- `/implement_plan` — Guided phase-by-phase implementation
+- `/validate_plan` — Independent verification (PASS/FAIL verdict)
+- `/iterate_plan` — Update existing plan with feedback
+
+**Ralph (Autonomous) Pipeline:**
+- `/ralph` — Smart router: assesses complexity, routes to right tier
+- `/ralph_research` — Autonomous research (iterates until thorough)
+- `/ralph_plan` — Autonomous planning (iterates until bulletproof)
+- `/ralph_impl` — Autonomous implementation (auto-retries, commits per phase)
+
+**Supporting Commands:**
+- `/commit` — Create commits with user approval (no AI attribution)
+- `/describe_pr` — Generate comprehensive PR description
+- `/finish_impl` — Push branches, create PRs, wrap up worktree
+- `/launch_impl` — Create isolated worktree and launch implementation
+- `/create_handoff` — Save session context for continuation
+- `/resume_handoff` — Continue from a previous handoff
+- `/debug` — Investigation only (read-only troubleshooting)
+- `/tdd` — Test-driven development workflow
+- `/creative_thinking` — Structured creative thinking and ideation
+
+### Safety Hooks (3 pre-tool-use hooks)
+Configured in `settings.json`, these block dangerous operations *before* they execute:
+
+| Hook | Blocks |
+|------|--------|
+| `block-destructive-git.sh` | Force push, hard reset, branch -D on protected branches, git clean -f, push to main |
+| `block-prod-deploy.sh` | Bare `wrangler deploy` without `-e staging` |
+| `block-sensitive-files.sh` | Edits to `.env`, credentials, secrets, private keys |
+
+### Skills (7 reusable skill bundles)
+- `skill-creator` — Guide for creating new skills
+- `template` — Starter template for custom skills
+- `first-principles-review` — Challenge direction before planning (Hammock Driven Development)
+- `bugfix` — Structured bug investigation workflow
+- `analyze-logs` — Parse and analyze log files
+- `ast-grep` — Structural code search using AST patterns
+- `agent-browser` — Browser automation for testing and data extraction
+
+### Scripts (3 worktree management scripts)
+- `create-impl-worktree.sh` — Create isolated implementation environment
+- `cleanup-impl-worktree.sh` — Remove worktree and optionally delete branches
+- `setup-worktree-thoughts.sh` — Symlink thoughts/ to share across worktrees
+
+---
+
 ## Setup
 
-### Required: Copy Commands & Agents
+### 1. Copy to Your Project
 
 ```bash
-# Copy the .claude directory to your project
-cp -r .claude/ /path/to/your/project/
+# Clone this repo
+git clone https://github.com/KablewyAI/claude_code_rpiv.git
 
-# Create thoughts directory structure
+# Copy everything to your project
+cp -r claude_code_rpiv/.claude /path/to/your/project/
+cp -r claude_code_rpiv/scripts /path/to/your/project/
+cp -r claude_code_rpiv/thoughts /path/to/your/project/
+
+# Or use it as a starting point for a new project
+cp -r claude_code_rpiv my-new-project
+cd my-new-project && rm -rf .git && git init
+```
+
+### 2. Create Your CLAUDE.md
+
+Copy and customize the template:
+```bash
+cp CLAUDE.md.template CLAUDE.md
+```
+
+The `CLAUDE.md` file is your project's instruction manual for Claude. It overrides default behavior. Be specific and opinionated — this is where you encode your project's conventions, constraints, and architectural decisions.
+
+### 3. Initialize Thoughts Directory
+
+```bash
 mkdir -p thoughts/shared/{research,plans,validations,handoffs}
 ```
 
-### Recommended: Playwright MCP for Browser Testing
+### 4. (Recommended) Add Playwright MCP
 
 From [Claude Code Best Practices](https://www.anthropic.com/engineering/claude-code-best-practices):
 
@@ -61,19 +252,12 @@ From [Claude Code Best Practices](https://www.anthropic.com/engineering/claude-c
 claude mcp add playwright -- npx @playwright/mcp@latest
 ```
 
-This enables Claude to:
-- Interact with web pages during validation
-- Take screenshots for visual verification
-- Test UI changes in a real browser
-- Debug frontend issues with live inspection
+Enables browser interaction during validation: screenshots, form testing, visual verification.
 
-### Optional: Ralph Plugin for Autonomous Mode
+### 5. (Optional) Ralph Plugin for Autonomous Loops
 
 ```bash
-# Add Anthropic's plugin marketplace
 /plugin marketplace add anthropics/claude-code
-
-# Install Ralph Wiggum
 /plugin install ralph-wiggum@claude-plugins-official
 ```
 
@@ -81,12 +265,14 @@ This enables Claude to:
 
 ## Quick Start
 
-### Standard RPIV Flow
+### Standard RPIV Flow (Interactive)
 ```bash
 /research_codebase      # Understand what exists
 /create_plan            # Design verifiable phases
 /implement_plan         # Execute step by step
 /validate_plan          # Independent verification
+/commit                 # Stage and commit
+/describe_pr            # Generate PR description
 ```
 
 ### Ralph Autonomous Flow
@@ -95,6 +281,26 @@ This enables Claude to:
 /ralph_plan             # Keep refining until bulletproof
 /ralph_impl             # Keep implementing until complete
 /validate_plan          # Fresh agent verifies (always separate)
+/finish_impl            # Push, create PRs
+```
+
+### Full Pipeline (Worktree Isolation)
+```bash
+# 1. Research and plan on main branch
+/ralph_research "add user notifications"
+/ralph_plan @thoughts/shared/research/2026-03-01_user-notifications.md
+/commit  # Commit plan to main
+
+# 2. Create isolated worktree for implementation
+/launch_impl @thoughts/shared/plans/2026-03-01_user-notifications_plan.md
+
+# 3. In the worktree session:
+/ralph_impl @thoughts/shared/plans/2026-03-01_user-notifications_plan.md
+/validate_plan @thoughts/shared/plans/2026-03-01_user-notifications_plan.md
+/finish_impl  # Push branches, create PRs
+
+# 4. Merge PRs on GitHub, then clean up
+./scripts/cleanup-impl-worktree.sh user-notifications --delete-branches
 ```
 
 ### Supporting Commands
@@ -103,47 +309,54 @@ This enables Claude to:
 /resume_handoff         # Continue from handoff
 /iterate_plan           # Update existing plan
 /debug                  # Investigation only (no edits)
-/commit                 # Create commits (no AI attribution)
-/describe_pr            # Generate PR description
+/tdd                    # Test-driven development
+/creative_thinking      # Structured ideation
 ```
 
 ---
 
-## Why This Works
+## The Specification Discipline
 
-### The Problem with "Just Do It"
+The most important thing this system does is force you (and the AI) to write things down.
 
-When you ask an AI to "add feature X," it often:
-- Misunderstands existing code patterns
-- Makes changes that break other things
-- Skips edge cases
-- Can't verify its own work objectively
+### Research Forces Understanding
 
-### The RPIV Solution
+Before the AI touches your code, it documents how things work *today*:
+- What components exist and how they connect
+- What patterns and conventions are already established
+- What test infrastructure exists
+- What the actual data flow looks like (not what you *think* it looks like)
 
-1. **Research** forces understanding before action
-2. **Plan** creates checkpoints and verification steps
-3. **Implement** follows the plan exactly (no improvisation)
-4. **Validate** uses a fresh agent context for objectivity
+This catches the most common failure mode: the AI assuming your codebase works like a typical tutorial project when it actually has years of accumulated design decisions.
 
-### Why Separate Validator from Implementer?
+### Plans Make Decisions Reviewable
 
-From [Anthropic's Claude Code Best Practices](https://www.anthropic.com/engineering/claude-code-best-practices):
+A plan is a specification. It says:
+- "Here's what we're building" (desired end state)
+- "Here's how we're building it" (phased approach)
+- "Here's how we'll know it works" (verification commands per phase)
+- "Here's what could go wrong" (risk assessment)
+- "Here's how to undo it" (rollback plan)
 
-> "A simple but effective approach is to have one Claude write code while another reviews or tests it. Similar to working with multiple engineers, sometimes having separate context is beneficial."
+You review the plan *before* any code exists. This is orders of magnitude cheaper than reviewing a PR with 500 lines of code that took the wrong approach. If the plan is wrong, you `/iterate_plan` with feedback. If it's right, the implementation is largely mechanical.
 
-> "This separation often yields better results than having a single Claude handle everything."
+### Validation Closes the Loop
 
-The implementer has context that can bias its judgment:
-- "I know this works because I just wrote it"
-- "This edge case doesn't apply because..."
-- "The tests prove it's correct"
+The validator doesn't just run tests — it reviews test quality:
 
-The validator starts fresh:
-- Reads the plan's requirements
-- Checks if implementation actually meets them
-- Runs tests without assumptions
-- Flags issues the implementer might rationalize away
+```
+HIGH SIGNAL: Tests verify behavior, would catch regressions → PASS
+MEDIUM SIGNAL: Tests exist but have gaps → PASS WITH NOTES
+LOW SIGNAL: Tests pass but don't verify anything → FAIL
+NO TESTS: Missing test coverage → FAIL
+```
+
+It also checks production failure modes:
+- Does a database outage return "Authentication failed"? (causes retry storms)
+- Are generic `catch` blocks swallowing error types?
+- Do service failures return 503 with `Retry-After` headers?
+
+These are the kinds of issues that ship to production when the implementer is too close to the code to see them.
 
 ---
 
@@ -153,154 +366,120 @@ The validator starts fresh:
 
 #### `/research_codebase` — Single-Pass Research
 ```
-Goal: Document how the codebase works today for a specific topic.
 Output: thoughts/shared/research/YYYY-MM-DD_<topic>.md
-
-Key sections:
-- Summary (5-12 bullets)
-- Relevant components with file:line references
-- Data flow and patterns
-- How to run tests
-- Open questions / Non-goals
+Sections: Summary, components with file:line refs, data flow, test commands, open questions
 ```
 
 #### `/ralph_research` — Autonomous Research
 ```
-Goal: Keep iterating until nothing is unknown.
-Difference: Multiple passes, self-assessment checkpoints, exhaustive coverage.
-
-Completion criteria:
-- All entry points identified
-- Data flow fully traced
-- Patterns documented
-- No gaps remaining (or explicitly marked as unknowns)
+Same output, but iterates multiple passes until exhaustive.
+Completion criteria: all entry points identified, data flow traced, no gaps remaining.
 ```
 
 ### Planning Phase
 
 #### `/create_plan` — Interactive Planning
 ```
-Goal: Create phased implementation plan with user collaboration.
 Output: thoughts/shared/plans/YYYY-MM-DD_<topic>_plan.md
-
-Key sections:
-- Desired end state
-- Risk assessment
-- Phase 0: Safety/setup
-- Phase N: Changes, files, verification commands
-- Rollback plan
-- Success criteria (automated + manual)
+Sections: Desired end state, risk assessment, Phase 0 (safety), Phase N (changes + verification), rollback, success criteria
 ```
 
 #### `/ralph_plan` — Autonomous Planning
 ```
-Goal: Keep refining until plan is bulletproof.
-Difference: Self-stress-tests each phase, verifies file paths exist,
-            removes all ambiguity before declaring complete.
-
-Completion criteria:
-- Every phase independently verifiable
-- All file paths confirmed to exist
-- No TBD items remain
-- Could be implemented without questions
+Same output, but self-stress-tests each phase, verifies file paths exist, removes all ambiguity.
 ```
 
 #### `/iterate_plan` — Update Existing Plan
 ```
-Goal: Surgically update plan based on feedback.
-Use when: Requirements changed, gaps discovered during implementation.
+Surgically update plan based on feedback without starting over.
 ```
 
 ### Implementation Phase
 
 #### `/implement_plan` — Guided Implementation
 ```
-Goal: Execute plan phases in order with verification.
-Rules:
-- Make smallest change per checkbox
-- Run verification after each phase
-- Pause for manual verification steps
-- Update plan checkboxes as you go
-- Stop and report on mismatch
+Executes plan phases in order. Runs verification after each phase.
+Pauses for manual verification steps. Stops on mismatch.
 ```
 
 #### `/ralph_impl` — Autonomous Implementation
 ```
-Goal: Keep implementing until all phases complete.
-Difference: Auto-retries failures (up to 3x), creates handoff if stuck.
+Executes all phases. Auto-retries failures (up to 3x).
+Commits after each successful phase. Creates handoff if stuck.
+```
 
-Safety limits:
-- Max 3 attempts per phase
-- Commits after each successful phase
-- Creates handoff on failure
-- Never force-pushes
+#### `/tdd` — Test-Driven Development
+```
+Phase 1: Write failing tests (red). Phase 2: Minimal implementation (green).
+Phase 3: Refactor. Phase 4: Validation report.
 ```
 
 ### Validation Phase
 
 #### `/validate_plan` — Independent Verification
 ```
-Goal: Fresh agent verifies implementation matches requirements.
 Output: thoughts/shared/validations/YYYY-MM-DD_<topic>_validation.md
-
-Phases:
-1. Requirements alignment
-2. Test verification (run tests)
-3. Test quality review (are tests high-signal?)
-4. Code quality (debug logs, TODOs)
-5. Security (mandatory)
-6. Final verdict: PASS / PASS WITH NOTES / FAIL
-
-Test Quality Verdicts:
-- HIGH SIGNAL: Tests verify behavior, catch regressions → PASS
-- MEDIUM SIGNAL: Tests adequate but have gaps → PASS WITH NOTES
-- LOW SIGNAL: Tests pass but don't verify anything → FAIL
-- NO TESTS: Missing test coverage → FAIL
+Phases: Requirements check, test verification, test quality review, code quality, security, production failure modes
+Verdict: PASS / PASS WITH NOTES / FAIL
 ```
 
 ### Handoff & Recovery
 
 #### `/create_handoff` — Save Session Context
 ```
-Goal: Document context so fresh agent can continue.
 Output: thoughts/shared/handoffs/YYYY-MM-DD_HH-MM-SS_<topic>.md
-
-Key sections:
-- Tasks and status
-- Recent changes (file:line)
-- Learnings
-- Action items
+Captures: tasks, recent changes, learnings, action items
 ```
 
 #### `/resume_handoff` — Continue from Handoff
 ```
-Goal: Pick up where previous session left off.
-Process: Verify state, present summary, execute next steps.
+Verifies state, presents summary, executes next steps.
 ```
 
 #### `/debug` — Investigation Only
 ```
-Goal: Troubleshoot without editing files.
-Use when: Something's broken during manual testing.
-Constraint: Read-only. Reports findings, suggests fixes, but doesn't apply them.
+Read-only troubleshooting. Reports findings, suggests fixes, doesn't apply them.
 ```
 
 ### Git & PR
 
 #### `/commit` — Create Commits
 ```
-Goal: Stage and commit with user approval.
-Rules:
-- NO Claude/AI attribution
-- NO Co-Authored-By lines
-- Specific file staging (never git add -A)
-- User confirms before commit
+No AI attribution. Specific file staging. User confirms before commit.
 ```
 
 #### `/describe_pr` — Generate PR Description
 ```
-Goal: Comprehensive PR description with context.
-Includes: Summary, changes, testing, breaking changes, related artifacts.
+Summary, changes, testing, breaking changes, related artifacts.
+```
+
+#### `/finish_impl` — Wrap Up Worktree
+```
+Pushes branches, creates PRs for each sub-repo, cross-links them.
+```
+
+---
+
+## Multi-Repo Worktree Support
+
+For projects with multiple repositories (e.g., backend + frontend), the worktree scripts create isolated environments where each sub-repo gets its own branch:
+
+```bash
+# Create worktree with backend and frontend sub-repos
+./scripts/create-impl-worktree.sh dark-mode feature backend frontend
+
+# Result:
+# .claude/worktrees/dark-mode/
+# ├── CLAUDE.md, .claude/commands/     (workspace)
+# ├── thoughts/shared/                 (symlink -> main)
+# ├── backend/                         (feature/dark-mode branch)
+# └── frontend/                        (feature/dark-mode branch)
+```
+
+Configure the sub-repo directory prefix with `RPIV_REPO_PREFIX`:
+```bash
+export RPIV_REPO_PREFIX="myproject-"
+# Now scripts look for myproject-backend/, myproject-frontend/, etc.
 ```
 
 ---
@@ -308,156 +487,105 @@ Includes: Summary, changes, testing, breaking changes, related artifacts.
 ## Directory Structure
 
 ```
-.claude/
-├── agents/
-│   ├── codebase-locator.md        # Find files by feature/topic
-│   ├── codebase-analyzer.md       # Analyze how code works
-│   ├── codebase-pattern-finder.md # Find similar patterns
-│   ├── validation-reviewer.md     # Review against criteria
-│   ├── web-search-researcher.md   # External web research
-│   ├── thoughts-analyzer.md       # Analyze thoughts docs
-│   └── thoughts-locator.md        # Find thoughts docs
-└── commands/
-    ├── research_codebase.md       # /research_codebase
-    ├── create_plan.md             # /create_plan
-    ├── implement_plan.md          # /implement_plan
-    ├── validate_plan.md           # /validate_plan
-    ├── iterate_plan.md            # /iterate_plan
-    ├── create_handoff.md          # /create_handoff
-    ├── resume_handoff.md          # /resume_handoff
-    ├── debug.md                   # /debug
-    ├── commit.md                  # /commit
-    ├── describe_pr.md             # /describe_pr
-    ├── ralph_research.md          # /ralph_research
-    ├── ralph_plan.md              # /ralph_plan
-    └── ralph_impl.md              # /ralph_impl
-
-thoughts/shared/
-├── research/      # Research documents
-├── plans/         # Implementation plans
-├── validations/   # Validation reports
-└── handoffs/      # Session handoff docs
+your-project/
+├── CLAUDE.md                          # Project instructions (customize this!)
+├── .claude/
+│   ├── settings.json                  # Hook configurations
+│   ├── agents/
+│   │   ├── codebase-analyzer.md       # Analyze implementation details
+│   │   ├── codebase-locator.md        # Find files by feature/topic
+│   │   ├── codebase-pattern-finder.md # Find similar patterns
+│   │   ├── validation-reviewer.md     # Review against criteria
+│   │   ├── websearch-researcher.md    # Web research
+│   │   ├── thoughts-analyzer.md       # Analyze thoughts docs
+│   │   └── thoughts-locator.md        # Find thoughts docs
+│   ├── commands/
+│   │   ├── research_codebase.md       # /research_codebase
+│   │   ├── create_plan.md             # /create_plan
+│   │   ├── implement_plan.md          # /implement_plan
+│   │   ├── validate_plan.md           # /validate_plan
+│   │   ├── iterate_plan.md            # /iterate_plan
+│   │   ├── ralph.md                   # /ralph (smart router)
+│   │   ├── ralph_research.md          # /ralph_research
+│   │   ├── ralph_plan.md              # /ralph_plan
+│   │   ├── ralph_impl.md              # /ralph_impl
+│   │   ├── commit.md                  # /commit
+│   │   ├── describe_pr.md             # /describe_pr
+│   │   ├── finish_impl.md             # /finish_impl
+│   │   ├── launch_impl.md             # /launch_impl
+│   │   ├── create_handoff.md          # /create_handoff
+│   │   ├── resume_handoff.md          # /resume_handoff
+│   │   ├── debug.md                   # /debug
+│   │   ├── tdd.md                     # /tdd
+│   │   └── creative_thinking.md       # /creative_thinking
+│   ├── hooks/
+│   │   ├── block-destructive-git.sh   # Block force push, hard reset, etc.
+│   │   ├── block-prod-deploy.sh       # Block bare wrangler deploy
+│   │   └── block-sensitive-files.sh   # Block edits to secrets/credentials
+│   └── skills/
+│       ├── skill-creator/SKILL.md     # Guide for creating skills
+│       ├── template/SKILL.md          # Starter template
+│       ├── first-principles-review/   # Challenge direction before planning
+│       ├── bugfix/SKILL.md            # Structured bug investigation
+│       ├── analyze-logs/SKILL.md      # Log analysis
+│       ├── ast-grep/SKILL.md          # AST-based code search
+│       └── agent-browser/SKILL.md     # Browser automation
+├── scripts/
+│   ├── create-impl-worktree.sh        # Create isolated worktree
+│   ├── cleanup-impl-worktree.sh       # Remove worktree
+│   └── setup-worktree-thoughts.sh     # Symlink thoughts/ in worktree
+└── thoughts/
+    └── shared/
+        ├── research/                  # Research documents
+        ├── plans/                     # Implementation plans
+        ├── validations/               # Validation reports
+        └── handoffs/                  # Session handoff docs
 ```
 
 ---
 
-## Workflows
+## Design Patterns
 
-### Standard RPIV Workflow
+### 1. "Documentarian, not critic"
+All agents describe what IS, not what SHOULD BE. No unsolicited suggestions, no "improvements," no "you should." Just precise documentation of the existing codebase.
 
-```
-User: "Add dark mode toggle to settings page"
+### 2. Parallel sub-agents
+Research spawns multiple agents simultaneously for efficiency. The main context stays clean while sub-agents do the heavy lifting.
 
-/research_codebase
- → thoughts/shared/research/2026-01-10_dark-mode.md
- → Documents: theme system, settings structure, CSS patterns
+### 3. File:line references for everything
+All claims must be anchored to specific code locations. No vague "the authentication module" — it's `src/middleware/auth.ts:45-67`.
 
-/create_plan
- → thoughts/shared/plans/2026-01-10_dark-mode_plan.md
- → Phases: toggle UI → theme context → CSS vars → tests
+### 4. Artifacts as contracts
+Research docs, plans, and validation reports aren't just documentation — they're contracts between phases. The plan is a contract between human and AI. The validation report is a contract between implementation and `main`.
 
-/implement_plan
- → Executes phases in order
- → Runs verification after each
- → Updates checkboxes
+### 5. No AI attribution in commits
+Commits should appear human-authored. The human is responsible for the code, not the AI. The plan and validation docs provide the audit trail.
 
-/validate_plan
- → thoughts/shared/validations/2026-01-10_dark-mode_validation.md
- → Verdict: PASS / PASS WITH NOTES / FAIL
+### 6. Interactive confirmation
+The AI presents its understanding before taking action. "Here's what I'm going to do" before "I did it."
 
-/commit → /describe_pr
- → Ready for review
-```
-
-### Ralph Autonomous Workflow
-
-```
-User: "Add dark mode toggle to settings page"
-
-/ralph_research
- → Iterates 3x until exhaustive
- → thoughts/shared/research/2026-01-10_dark-mode.md
-
-/ralph_plan
- → Iterates 4x until bulletproof
- → thoughts/shared/plans/2026-01-10_dark-mode_plan.md
-
-/ralph_impl
- → Implements all phases
- → Auto-retries failures
- → Commits after each phase
-
-/validate_plan  ← Always use fresh agent for validation
- → Independent verification
- → Verdict: PASS
-```
-
-### True Autonomous Mode (Worktree)
-
-For completely hands-off implementation:
-
-```bash
-# 1. Create isolated worktree
-git worktree add ~/worktrees/dark-mode feature/dark-mode
-
-# 2. Launch autonomous session
-cd ~/worktrees/dark-mode
-claude --dangerously-skip-permissions \
-       --model opus \
-       "/ralph_impl @thoughts/shared/plans/2026-01-10_dark-mode_plan.md"
-```
-
-Or with the official Ralph plugin:
-```bash
-/ralph-loop "/ralph_impl @thoughts/shared/plans/..." --max-iterations 20
-```
-
-**Cost warning:** Autonomous loops burn tokens. Set `--max-iterations` as a safety net.
+### 7. Fresh context for verification
+The validator has never seen the implementation reasoning. It only has the plan (what was promised) and the code (what was delivered). This eliminates the implementer's confirmation bias.
 
 ---
 
 ## Best Practices
 
 ### Do
-
 - **Complete each phase before moving on** — Don't skip research
 - **Reference artifacts by path** — `@thoughts/shared/plans/2026-01-10_feature_plan.md`
 - **Use sub-agents for heavy lifting** — Keeps main context clean
 - **Include file:line references** — Makes verification concrete
 - **Run verification commands** — Don't assume success
 - **Use worktrees for autonomous mode** — Isolates experimental changes
+- **Commit plans to main before creating worktrees** — `@<path>` refs resolve at invocation time
 
 ### Don't
-
 - **Don't improvise during implementation** — Stick to the plan
 - **Don't validate your own work** — Fresh context catches biases
-- **Don't skip the security phase** — It's mandatory
+- **Don't skip the security phase** — It's mandatory in validation
 - **Don't batch completions** — Mark things done as you go
 - **Don't run Ralph without limits** — Always set max iterations
-
----
-
-## Design Patterns
-
-These patterns are borrowed from [HumanLayer's setup](https://github.com/humanlayer/humanlayer/tree/main/.claude):
-
-### 1. "Documentarian, not critic"
-Agents describe what IS, not what SHOULD BE. No unsolicited suggestions.
-
-### 2. Parallel sub-agents
-Research spawns multiple agents simultaneously for efficiency.
-
-### 3. Read files COMPLETELY
-Never use limit/offset. Full context always.
-
-### 4. File:line references for everything
-All claims must be anchored to specific code locations.
-
-### 5. No Claude attribution in commits
-Commits should appear human-authored.
-
-### 6. Interactive confirmation
-Present understanding before taking action.
 
 ---
 
@@ -466,10 +594,12 @@ Present understanding before taking action.
 > "Me fail English? That's unpossible!" — Ralph Wiggum
 
 Ralph Mode embodies relentless optimism:
-- Errors are learning opportunities
+- Errors are learning opportunities, not stopping points
 - Each iteration gets closer to success
 - Giving up is not an option (until safety limits)
-- Trust the process
+- Trust the process — the methodology works even when individual steps stumble
+
+**Cost warning:** Autonomous loops burn tokens. Use `--max-iterations` as a safety net. Start with lower limits and increase as you gain confidence in the system.
 
 ---
 
@@ -480,3 +610,10 @@ Ralph Mode embodies relentless optimism:
 - **HumanLayer Claude setup:** [github.com/humanlayer/humanlayer](https://github.com/humanlayer/humanlayer/tree/main/.claude)
 - **Validation separation insight:** [Anthropic Claude Code Best Practices](https://www.anthropic.com/engineering/claude-code-best-practices)
 - **Ralph Wiggum plugin:** [Anthropic Official](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum)
+- **Production battle-testing:** [KablewyAI](https://github.com/KablewyAI) — this system has been refined through hundreds of real implementation cycles
+
+---
+
+## License
+
+MIT — See [LICENSE](LICENSE) for details.

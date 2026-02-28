@@ -77,6 +77,7 @@ date: <ISO8601>
 topic: <short topic>
 status: draft
 branch: <branch>
+worktree: <worktree name if in a worktree, otherwise omit>
 git_commit: <hash>
 tags: [plan, <feature-area>]
 ---
@@ -101,27 +102,66 @@ tags: [plan, <feature-area>]
 
 ## Phase 1 — [Name]
 
+### Complexity: S / M / L
+
 ### Changes
 - [ ] **[Change description]**
   - Files: `path/to/file.js`
   - Symbols: `functionName`, `ClassName`
   - Details: [specific changes needed]
 
+### Acceptance Criteria
+
+For any phase that adds or modifies behavior, write Given/When/Then scenarios.
+These become the failing tests written BEFORE implementation (TDD red phase).
+
+```gherkin
+Scenario: [Happy path]
+  Given [precondition]
+  When [action]
+  Then [expected outcome]
+
+Scenario: [Error case]
+  Given [precondition]
+  When [action that should fail]
+  Then [expected error handling]
+```
+
+Skip only for pure setup/config/refactor phases with no new behavior.
+
 ### Tests
-- [ ] Add/update tests for [what]
+- [ ] Write failing tests from acceptance criteria above (RED)
+- [ ] Implement minimum code to pass (GREEN)
 - [ ] Test file: `path/to/test.js`
 
 ### Verification
 **Automated:**
 - Command: `npm test`
-- Expected: All tests pass
+- Expected: All tests pass (existing + new)
 
 **Manual:**
 - [ ] [Manual verification step]
 - [ ] [Manual verification step]
 
 ## Phase 2 — [Name]
-[Same structure as Phase 1]
+[Same structure — include Acceptance Criteria for behavior-changing phases]
+
+## Gherkin Quality Checklist
+
+Validate every Given/When/Then scenario before finalizing the plan:
+
+1. **Given** specifies WHO (user type, permissions) and WHAT STATE exists (data, config)
+   - Bad: `Given a user` → Good: `Given an authenticated user with MLS access`
+2. **When** describes ONE user action — not implementation details
+   - Bad: `When POST /api/search` → Good: `When they search with filters city="Phoenix"`
+3. **Then** uses specific, assertable values — never "it works"
+   - Bad: `Then results are returned` → Good: `Then results contain only Phoenix properties under $500k`
+4. **Error scenarios** specify error type AND code/message
+   - Bad: `Then an error occurs` → Good: `Then a 401 is returned with "Authentication required"`
+5. **Each scenario tests ONE behavior**
+6. **No implementation leaking** — describe behavior, not DB operations
+
+**Quick self-test:** For each Then, ask "Could I write an assert from this?" If not, rewrite.
 
 ## Rollback Plan
 - What to revert if something goes wrong
@@ -172,6 +212,23 @@ After writing the plan:
 - Call out error handling and user-facing messages
 - Call out backwards-compat concerns
 - Do NOT add new dependencies unless explicitly required
+- Every behavior-changing phase MUST have Given/When/Then acceptance criteria
+- Include a complexity estimate (S/M/L) per phase
+
+## Definition of Ready (DoR)
+
+A plan is **Ready** for implementation when ALL of the following are met:
+
+- [ ] Every phase has a clear description of what changes
+- [ ] Every behavior-changing phase has Given/When/Then acceptance criteria
+- [ ] Acceptance criteria cover happy path, error cases, and edge cases
+- [ ] Every phase has a complexity estimate (S/M/L)
+- [ ] Dependencies between phases are explicit
+- [ ] File paths and symbols are verified to exist
+- [ ] No "TBD" or "figure out later" items remain
+- [ ] An autonomous agent could implement this without asking questions
+
+**If the plan does not meet DoR, iterate before handing off to implementation.**
 
 ## What NOT to Do
 
