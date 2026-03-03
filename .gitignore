@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+.env
+.env.*
+.dev.vars
+settings.local.json
+.claude/worktrees/
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx

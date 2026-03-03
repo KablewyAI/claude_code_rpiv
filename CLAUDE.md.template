@@ -1,0 +1,96 @@
+# CLAUDE.md
+
+<!--
+  HOW TO USE THIS TEMPLATE
+  ========================
+  1. Copy this file to CLAUDE.md in your project root
+  2. Fill in ONLY the sections that apply to your project
+  3. Delete everything else — including these comments
+  4. Start small. Add rules ONLY when the model makes a specific mistake.
+  5. Audit this file on every model release. Remove rules newer models handle natively.
+
+  WHY THIS MATTERS
+  ================
+  Your CLAUDE.md sits at the top of the leverage hierarchy:
+
+    CLAUDE.md  →  specification  →  research  →  plan  →  code
+
+  One bad line here cascades into hundreds of bad lines of code.
+  But one UNNECESSARY line here wastes instruction budget and can
+  actually make the model perform WORSE by over-constraining it.
+
+  LLMs degrade after ~150-250 instructions. The Claude Code system
+  prompt uses ~50. That leaves ~200 for your CLAUDE.md + plan + prompt.
+  Every line must earn its place.
+
+  PRINCIPLES
+  ==========
+  - Start with project description + key commands. That's it.
+  - Add rules reactively: model made a mistake? Add a rule. Otherwise don't.
+  - Prefer hooks over instructions for constraints (hooks enforce 100%, instructions ~97%)
+  - Split into nested CLAUDE.md files in subdirectories (lazy-loaded, not always in context)
+  - Don't teach the model things it already knows (encryption, git basics, common patterns)
+  - With each model upgrade, REMOVE instructions. New models have better built-in practices.
+  - Commit every CLAUDE.md change to git so you can trace what caused regressions.
+
+  STRUCTURE (positioning matters — LLMs weigh beginning and end more)
+  ==========
+  1. Project description (top — always loaded, sets the frame)
+  2. Key commands (near top — frequently referenced)
+  3. Critical constraints (things that are NOT obvious from the codebase)
+  4. Architecture notes (only what can't be inferred from code)
+  5. Workflow rules (pipeline, branching, deploy)
+
+  WHAT DOES NOT BELONG HERE
+  =========================
+  - Things the model already knows (use encryption, validate input, etc.)
+  - Detailed API docs (put in nested CLAUDE.md near the relevant code)
+  - Migration guides (put in the database directory's CLAUDE.md)
+  - Example code (the model can read your actual code)
+  - History of changes (this isn't a changelog)
+  - Random prompt tips from Twitter
+-->
+
+## Project
+
+<!-- 2-3 sentences. What is this? Why does it exist? What's the tech stack? -->
+<!-- This frames every decision the model makes. Be precise. -->
+
+## Commands
+
+```bash
+# Dev
+# npm run dev
+
+# Test
+# npm test
+
+# Type check
+# npx tsc --noEmit
+```
+
+## Constraints
+
+<!-- ONLY things that are NOT obvious from the codebase. Examples: -->
+<!-- - Never deploy without explicit permission -->
+<!-- - API keys are server-side only -->
+<!-- - Use npm, not pnpm or bun -->
+<!-- If a constraint can be enforced with a hook, use a hook instead (see .claude/hooks/) -->
+
+## Workflow
+
+- For tasks touching 3+ files: `/ralph_research` -> `/ralph_plan` -> `/ralph_impl` -> `/validate_plan`
+- Debugging: State hypothesis -> Trace with file:line refs -> Rule out alternatives -> Verify fix location -> Close loop
+
+| Command | Output |
+|---------|--------|
+| `/ralph_research <topic>` | `thoughts/shared/research/YYYY-MM-DD_<topic>.md` |
+| `/ralph_plan @<research>` | `thoughts/shared/plans/YYYY-MM-DD_<topic>_plan.md` |
+| `/ralph_impl @<plan>` | Commits per phase |
+| `/validate_plan @<plan>` | `thoughts/shared/validations/YYYY-MM-DD_<topic>.md` |
+
+## Key Directories
+
+<!-- Only list directories that aren't obvious from the project structure -->
+<!-- - **API**: `src/routes/` -->
+<!-- - **Thoughts**: `thoughts/shared/` -->
