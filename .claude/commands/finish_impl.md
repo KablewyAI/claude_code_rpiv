@@ -33,6 +33,13 @@ Find validation reports:
 ls thoughts/shared/validations/*${SLUG}* 2>/dev/null
 ```
 
+Find screencasts:
+
+```bash
+ls thoughts/shared/screencasts/*${SLUG}* 2>/dev/null
+ls /tmp/screencast-${SLUG}*.webm 2>/dev/null
+```
+
 **Validation gate:**
 - If a validation report exists with `status: FAIL` → **STOP**. Tell the user to fix blocking issues and re-run `/validate_plan` first.
 - If a validation report exists with `status: PASS` or `status: PASS WITH NOTES` → proceed.
@@ -131,6 +138,7 @@ Read the plan file and validation report. Build the PR body using this template:
 
 - Plan: `thoughts/shared/plans/<plan-file>`
 - Validation: `thoughts/shared/validations/<validation-file>`
+[- Screencast: `thoughts/shared/screencasts/<screencast-file>` — if recorded]
 [- Cross-repo PR: <other-repo> #<number> — if applicable, added in Step 7]
 ```
 
@@ -178,17 +186,18 @@ Add lines like:
 
 ### Step 8: Commit validation report to main workspace
 
-If a validation report exists, commit it to the main workspace repo (not the worktree):
+If a validation report or screencast report exists, commit them to the main workspace repo (not the worktree):
 
 ```bash
 cd <main_repo>
-git add thoughts/shared/validations/*${SLUG}*
-git status --porcelain thoughts/shared/validations/
+git add thoughts/shared/validations/*${SLUG}* 2>/dev/null
+git add thoughts/shared/screencasts/*${SLUG}* 2>/dev/null
+git status --porcelain thoughts/shared/
 ```
 
 If there are changes to commit:
 ```bash
-git commit -m "docs: Add ${SLUG} validation report"
+git commit -m "docs: Add ${SLUG} validation and screencast reports"
 git push origin main
 ```
 

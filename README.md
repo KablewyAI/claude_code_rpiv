@@ -22,6 +22,7 @@ When you tell an AI "add feature X," you're giving it an underspecified problem.
 - [Setup](#setup) — Installation and configuration
 - [Quick Start](#quick-start) — Interactive, autonomous, and full pipeline flows
 - [The Specification Discipline](#the-specification-discipline) — Good vs bad artifacts, Gherkin acceptance criteria, validation quality, FAIL recovery, institutional memory, the knowledge system, guarding against faulty logic
+- [Screencast Verification](#screencast-verification) — Visual feature verification with recorded browser demos
 - [When NOT to Use RPIV](#when-not-to-use-rpiv) — Outages, exploration, trivial changes, greenfield
 - [Problem Framing: `/ralph`](#problem-framing-ralph) — Complexity assessment, tier routing, WHO/WHEN/STATUS QUO/WHY
 - [Worktree Lifecycle](#worktree-lifecycle-launch_impl--finish_impl) — Git worktrees explained, `/launch_impl`, `/finish_impl`, the full flow
@@ -443,7 +444,7 @@ Specialized agents that follow the "documentarian, not critic" principle — the
 | `thoughts-analyzer` | Deep analysis of thoughts/ documents |
 | `thoughts-locator` | Find relevant documents in thoughts/ directory |
 
-### Commands (18 slash commands)
+### Commands (19 slash commands)
 
 **Core RPIV Pipeline:**
 - `/research_codebase` — Single-pass codebase research
@@ -468,6 +469,7 @@ Specialized agents that follow the "documentarian, not critic" principle — the
 - `/debug` — Investigation only (read-only troubleshooting)
 - `/tdd` — Test-driven development workflow
 - `/creative_thinking` — Structured creative thinking and ideation
+- `/screencast_feature` — Record browser screencast demos for visual feature verification
 
 ### Safety Hooks (3 pre-tool-use hooks)
 Configured in `settings.json`, these block dangerous operations *before* they execute:
@@ -556,7 +558,32 @@ The `CLAUDE.md` file is your project's instruction manual for Claude. It overrid
 mkdir -p thoughts/shared/{research,plans,validations,handoffs}
 ```
 
-### 4. (Recommended) Add Playwright MCP
+### 4. (Recommended) Install agent-browser for Visual Verification
+
+[agent-browser](https://github.com/anthropics/agent-browser) is a CLI tool that wraps Playwright, giving Claude Code the ability to control a real browser — navigate pages, click elements, fill forms, take screenshots, and **record screencasts** (`.webm` videos).
+
+This powers the `/screencast_feature` command and the optional visual verification step in `/validate_plan`. After implementing a feature, the agent can open your app, interact with the new feature, and record a video you can watch to verify it works — no code review needed.
+
+**Install agent-browser:**
+
+```bash
+npm install -g @anthropic-ai/agent-browser
+```
+
+The `agent-browser` skill (included in `.claude/skills/agent-browser/`) teaches Claude Code how to use the CLI. It's automatically activated when browser interaction is needed.
+
+**What agent-browser can do:**
+- **Navigate**: `agent-browser open <url>`, `back`, `forward`, `reload`
+- **Inspect**: `agent-browser snapshot -i` returns an accessibility tree with element refs (`@e1`, `@e2`)
+- **Interact**: `click @e1`, `fill @e2 "text"`, `hover`, `select`, `press Enter`
+- **Screenshots**: `agent-browser screenshot path.png` or `screenshot --full` for full page
+- **Video recording**: `agent-browser record start ./demo.webm` → interact → `record stop`
+- **Wait**: `wait --text "Success"`, `wait --load networkidle`, `wait --url "**/dashboard"`
+- **JavaScript**: `agent-browser eval "document.title"`
+- **Auth**: `cookies set`, `storage local set`, `state save/load`
+- **Network**: Route interception, request mocking, request tracking
+
+**Alternative — Playwright MCP (lighter weight, no video recording):**
 
 From [Claude Code Best Practices](https://www.anthropic.com/engineering/claude-code-best-practices):
 
@@ -564,7 +591,7 @@ From [Claude Code Best Practices](https://www.anthropic.com/engineering/claude-c
 claude mcp add playwright -- npx @playwright/mcp@latest
 ```
 
-Enables browser interaction during validation: screenshots, form testing, visual verification.
+Enables browser interaction during validation (screenshots, form testing) but does **not** support video recording. Use this if you only need screenshots and don't plan to use `/screencast_feature`.
 
 ### 5. (Optional) Ralph Plugin for Autonomous Loops
 
@@ -803,6 +830,66 @@ Every plan includes a lightweight "Why Not" section at the top — 2-3 bullets n
 ```
 
 This section answers the most common question a future developer asks: "why didn't they just do the obvious thing?"
+
+---
+
+## Screencast Verification
+
+Traditional validation checks code quality — tests pass, security is sound, production failure modes are handled. But for user-facing features, there's a gap: **does it actually look and work right in the browser?**
+
+Screencast verification closes that gap. After implementing a feature, the agent opens a real browser, interacts with the new feature exactly like a user would, and records a `.webm` video. You watch a 15-45 second clip and know immediately whether to ship it — no code review required.
+
+**Inspired by:** [Cursor's agent-recorded screencasts](https://x.com/cursor_ai) — agents that implement features, test them visually, and return video evidence of their work.
+
+### How It Works
+
+```
+/screencast_feature @thoughts/shared/plans/2026-03-10_user-notifications_plan.md
+```
+
+The agent:
+1. **Reads the plan** to understand what was built
+2. **Writes a demo script** — a numbered sequence of browser actions — and shows it to you for approval
+3. **Does a dry run** without recording to discover element refs and timing
+4. **Records the screencast** — navigates the app, interacts with the feature, pauses between actions so you can follow
+5. **Saves a report** to `thoughts/shared/screencasts/` with timestamps and observations
+
+### Integration with the Pipeline
+
+Screencast verification plugs into two existing pipeline stages:
+
+**During `/validate_plan`:** If the plan includes UI changes, the validator suggests running `/screencast_feature`. The screencast report is referenced in the validation report under a "Visual Verification" section.
+
+**During `/finish_impl`:** Screencast reports are auto-detected, included in the PR body under "Related", and committed alongside the validation report.
+
+```
+Full pipeline with screencast:
+
+  /ralph_research → /ralph_plan → /launch_impl → /ralph_impl
+       → /validate_plan (suggests screencast for UI changes)
+       → /screencast_feature (records demo video)
+       → /finish_impl (includes screencast in PR)
+```
+
+### Prerequisites
+
+Screencast verification requires [agent-browser](#4-recommended-install-agent-browser-for-visual-verification). The `agent-browser` skill (`.claude/skills/agent-browser/`) is included — it teaches Claude Code the full CLI surface for browser automation and video recording.
+
+### Output
+
+- **Video**: `/tmp/screencast-<slug>.webm` — the recorded demo
+- **Report**: `thoughts/shared/screencasts/YYYY-MM-DD_<slug>_screencast.md` — timestamped demo script, observations, verdict
+
+### When to Use It
+
+| Scenario | Use Screencast? |
+|----------|----------------|
+| New UI component or page | Yes |
+| Visual behavior change (animation, layout, responsive) | Yes |
+| Form flow or multi-step wizard | Yes |
+| API-only / backend change | No — use tests and curl |
+| CSS/styling update | Yes — the video IS the review |
+| Bug fix with visible symptoms | Yes — prove it's fixed |
 
 ---
 
@@ -1056,6 +1143,16 @@ Output: thoughts/shared/validations/YYYY-MM-DD_<topic>_validation.md
 Phases: Requirements check, test verification, test quality review, invariants & business rules,
         code quality, security, production failure modes
 Verdict: PASS / PASS WITH NOTES / FAIL
+```
+
+### Visual Verification
+
+#### `/screencast_feature` — Record Browser Demo
+```
+Output: thoughts/shared/screencasts/YYYY-MM-DD_<topic>_screencast.md + /tmp/screencast-<slug>.webm
+Reads the plan, writes a demo script, does a dry run, records a .webm screencast of the feature
+in a real browser via agent-browser. Integrated into /validate_plan (optional) and /finish_impl (auto-detected).
+Requires: agent-browser CLI installed.
 ```
 
 ### Handoff & Recovery
@@ -1385,6 +1482,7 @@ To configure these hooks, see the [Session Lifecycle Hooks](#session-lifecycle-h
 | `/ralph_impl` | Implement | Autonomous implementation — executes phases, auto-retries, commits per phase |
 | `/validate_plan` | Validate | Independent verification — fresh context, PASS/FAIL verdict |
 | `/finish_impl` | Ship | Pushes branches, creates cross-linked PRs, commits validation |
+| `/screencast_feature` | Validate | Records browser screencast of feature for visual verification |
 | `/commit` | Git | Stages and commits with user approval, no AI attribution |
 | `/create_handoff` | Recovery | Saves session context for continuation by a fresh agent |
 | `/resume_handoff` | Recovery | Picks up where previous session left off |

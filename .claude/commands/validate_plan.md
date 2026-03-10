@@ -245,7 +245,22 @@ catch (error) {
 - Generic catch-all on internal-only code path = **NON-BLOCKING** observation
 - No dependency failure tests for code that calls external services = **BLOCKING**
 
-### Step 8: Generate Report
+### Step 8: Visual Verification (OPTIONAL)
+
+If the plan includes **user-facing UI changes** (frontend components, new pages, visual behavior changes), suggest a screencast:
+
+> "This plan includes UI changes. Run `/screencast_feature @<plan_path>` to record a visual demo for human review?"
+
+If the user confirms, run `/screencast_feature` with the plan path. If not, skip and proceed to the report.
+
+If a screencast was already recorded (check `thoughts/shared/screencasts/*<SLUG>*`), reference it in the report under a "Visual Verification" section:
+```markdown
+## Visual Verification
+- **Screencast**: `thoughts/shared/screencasts/YYYY-MM-DD_<SLUG>_screencast.md`
+- **Video**: `/tmp/screencast-<SLUG>.webm`
+```
+
+### Step 9: Generate Report
 
 Write to: `thoughts/shared/validations/YYYY-MM-DD_<short-topic>_validation.md`
 
