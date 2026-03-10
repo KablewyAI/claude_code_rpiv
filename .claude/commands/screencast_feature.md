@@ -69,7 +69,35 @@ agent-browser set viewport 1440 900
 
 ### Navigate and authenticate
 
-Authentication is project-specific. Check your project's CLAUDE.md for auth instructions. Use `agent-browser` capabilities (cookies, storage, state save/load, form filling, eval) as needed — see the agent-browser skill docs for the full command reference.
+Authentication is project-specific. Check CLAUDE.md for auth instructions. Common patterns:
+
+**Session injection** (for apps using sessionStorage/localStorage):
+```bash
+agent-browser open <BASE_URL>
+agent-browser wait 2000
+agent-browser eval "sessionStorage.setItem('session_key', JSON.stringify(<SESSION_JSON>))"
+agent-browser reload
+agent-browser wait --load networkidle
+agent-browser wait 2000
+```
+
+**Cookie-based auth:**
+```bash
+agent-browser open <BASE_URL>
+agent-browser cookies set auth_token <TOKEN>
+agent-browser reload
+agent-browser wait --load networkidle
+```
+
+**Login form:**
+```bash
+agent-browser open <BASE_URL>/login
+agent-browser snapshot -i
+agent-browser fill @<email_ref> "user@example.com"
+agent-browser fill @<password_ref> "password"
+agent-browser click @<submit_ref>
+agent-browser wait --url "**/dashboard"
+```
 
 ### Verify auth
 ```bash

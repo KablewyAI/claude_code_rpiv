@@ -570,7 +570,18 @@ This powers the `/screencast_feature` command and the optional visual verificati
 npm install -g @anthropic-ai/agent-browser
 ```
 
-The `agent-browser` skill (included in `.claude/skills/agent-browser/`) teaches Claude Code how to use the CLI. It covers the full command surface — navigation, element interaction via accessibility-tree refs, screenshots, video recording, auth, network interception, and more. See the [agent-browser docs](https://github.com/anthropics/agent-browser) for the complete reference.
+The `agent-browser` skill (included in `.claude/skills/agent-browser/`) teaches Claude Code how to use the CLI. It's automatically activated when browser interaction is needed.
+
+**What agent-browser can do:**
+- **Navigate**: `agent-browser open <url>`, `back`, `forward`, `reload`
+- **Inspect**: `agent-browser snapshot -i` returns an accessibility tree with element refs (`@e1`, `@e2`)
+- **Interact**: `click @e1`, `fill @e2 "text"`, `hover`, `select`, `press Enter`
+- **Screenshots**: `agent-browser screenshot path.png` or `screenshot --full` for full page
+- **Video recording**: `agent-browser record start ./demo.webm` → interact → `record stop`
+- **Wait**: `wait --text "Success"`, `wait --load networkidle`, `wait --url "**/dashboard"`
+- **JavaScript**: `agent-browser eval "document.title"`
+- **Auth**: `cookies set`, `storage local set`, `state save/load`
+- **Network**: Route interception, request mocking, request tracking
 
 **Alternative — Playwright MCP (lighter weight, no video recording):**
 
