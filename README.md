@@ -475,7 +475,7 @@ Configured in `settings.json`, these block dangerous operations *before* they ex
 | Hook | Blocks |
 |------|--------|
 | `block-destructive-git.sh` | Force push, hard reset, branch -D on protected branches, git clean -f, push to main |
-| `block-prod-deploy.sh` | Bare `wrangler deploy` without `-e staging` |
+| `block-prod-deploy.sh` | Bare `deploy` without `-e staging` or something (NOTE: Modify for your environment)|
 | `block-sensitive-files.sh` | Edits to `.env`, credentials, secrets, private keys |
 
 ### Session Lifecycle Hooks (automatic handoff discipline)
