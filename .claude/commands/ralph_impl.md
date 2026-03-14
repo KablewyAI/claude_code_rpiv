@@ -302,12 +302,12 @@ git worktree add ~/worktrees/feature-name feature/branch
 
 # Launch autonomous Claude session
 cd ~/worktrees/feature-name
-claude --dangerously-skip-permissions \
+claude --enable-auto-mode \
        --model opus \
        "/ralph_impl @thoughts/shared/plans/YYYY-MM-DD_feature_plan.md"
 ```
 
-**Warning**: `--dangerously-skip-permissions` allows autonomous file edits. Use with caution and always in a worktree!
+**Note**: `--enable-auto-mode` allows Claude to handle permission decisions autonomously with prompt injection safeguards. Recommended over `--dangerously-skip-permissions`. Always use in a worktree for isolation.
 
 ## Definition of Done (DoD) — Full Implementation
 

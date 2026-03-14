@@ -45,6 +45,90 @@
       }
     ]
   },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Agent",
+
+      "WebSearch",
+      "WebFetch",
+
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(bun *)",
+      "Bash(node *)",
+
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git checkout*)",
+      "Bash(git switch*)",
+      "Bash(git commit*)",
+      "Bash(git add *)",
+      "Bash(git stash*)",
+      "Bash(git worktree*)",
+      "Bash(git remote*)",
+      "Bash(git fetch*)",
+      "Bash(git merge*)",
+      "Bash(git rebase*)",
+      "Bash(git cherry-pick*)",
+      "Bash(gh *)",
+
+      "Bash(docker *)",
+
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(pip *)",
+      "Bash(pip3 *)",
+      "Bash(pytest *)",
+      "Bash(source *)",
+
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(jq *)",
+      "Bash(wc *)",
+      "Bash(sort *)",
+      "Bash(cut *)",
+      "Bash(echo *)",
+      "Bash(test *)",
+      "Bash(mkdir *)",
+      "Bash(chmod *)",
+      "Bash(unzip *)",
+      "Bash(zip *)",
+      "Bash(shasum *)",
+      "Bash(lsof *)",
+      "Bash(pgrep *)",
+      "Bash(timeout *)",
+      "Bash(bash *)",
+      "Bash(du *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(touch *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(xargs *)",
+      "Bash(curl *)",
+
+      "Bash(RUN_FULL=1 *)",
+
+      "Skill(*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)"
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/statusline-context-tracker.sh"

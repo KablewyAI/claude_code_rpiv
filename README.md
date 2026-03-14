@@ -18,7 +18,7 @@ When you tell an AI "add feature X," you're giving it an underspecified problem.
 - [Your CLAUDE.md Is Your Highest Leverage](#your-claudemd-is-your-highest-leverage) — Instruction budget, nested files, hooks, auto-memory
 - [What is RPIV?](#what-is-rpiv) — The four-phase pipeline
 - [What is Ralph Mode?](#what-is-ralph-mode) — Autonomous iteration
-- [What's Included](#whats-included) — Agents, commands, hooks, skills, scripts
+- [What's Included](#whats-included) — Agents, commands, hooks, permissions, skills, scripts
 - [Setup](#setup) — Installation and configuration
 - [Quick Start](#quick-start) — Interactive, autonomous, and full pipeline flows
 - [The Specification Discipline](#the-specification-discipline) — Good vs bad artifacts, Gherkin acceptance criteria, validation quality, FAIL recovery, institutional memory, the knowledge system, guarding against faulty logic
@@ -471,7 +471,60 @@ Specialized agents that follow the "documentarian, not critic" principle — the
 - `/creative_thinking` — Structured creative thinking and ideation
 - `/screencast_feature` — Record browser screencast demos for visual feature verification
 
-### Safety Hooks (3 pre-tool-use hooks)
+### Permission Safety Model (3 layers)
+
+RPIV uses a layered permission model so autonomous sessions stay safe without requiring `--dangerously-skip-permissions`. The three layers work together — any single layer can block a dangerous operation even if the others miss it.
+
+**Layer 1: Tool Allowlisting** (`settings.json` → `permissions.allow` / `permissions.deny`)
+
+The included `settings.json` pre-approves routine dev tools (Read, Edit, Write, git, npm, python, docker, etc.) so you rarely see permission prompts during normal work. Destructive operations are explicitly denied:
+
+```json
+{
+  "permissions": {
+    "allow": ["Read", "Edit", "Write", "Bash(git commit*)", "Bash(npm *)"],
+    "deny": ["Bash(rm -rf *)", "Bash(git push --force*)", "Bash(git reset --hard*)"]
+  }
+}
+```
+
+Deny rules take priority — they can't be overridden by allow rules. Customize the lists for your project's toolchain.
+
+**Layer 2: PreToolUse Hooks** (shell scripts that run before every tool call)
+
+Even if something slips past the allow/deny list, these hooks catch it:
+
+| Hook | Blocks |
+|------|--------|
+| `block-destructive-git.sh` | Force push, hard reset, branch -D on protected branches, git clean -f, push to main |
+| `block-prod-deploy.sh` | Bare `deploy` without `-e staging` or something (NOTE: Modify for your environment)|
+| `block-sensitive-files.sh` | Edits to `.env`, credentials, secrets, private keys |
+
+**Layer 3: Auto Mode** (`--enable-auto-mode`)
+
+For worktree sessions and autonomous loops, use `--enable-auto-mode` instead of `--dangerously-skip-permissions`:
+
+```bash
+# Recommended — Claude handles permissions with safety guardrails
+cd .claude/worktrees/my-feature && claude --enable-auto-mode
+
+# NOT recommended — bypasses ALL permission checks
+cd .claude/worktrees/my-feature && claude --dangerously-skip-permissions
+```
+
+| | `--enable-auto-mode` | `--dangerously-skip-permissions` |
+|---|---|---|
+| **Permission prompts** | Claude decides autonomously | Skipped entirely |
+| **Prompt injection defense** | Built-in safeguards | None |
+| **Deny rules respected** | Yes | No |
+| **Hooks still run** | Yes | Yes |
+| **Best for** | Worktrees, Ralph loops | Containers, CI/CD only |
+
+Auto mode is the "I trust you to drive but still wear a seatbelt" option. It eliminates approval friction while maintaining safety checks. Use `--dangerously-skip-permissions` only in fully isolated environments (Docker containers, CI runners, VMs) where there's nothing sensitive to protect.
+
+**Why this matters for RPIV:** Autonomous implementation sessions (`/ralph_impl`) can run for dozens of turns. Without permission management, you either babysit every approval prompt or bypass all safety checks. The layered model lets sessions run hands-off while still blocking destructive operations.
+
+### Safety Hooks (3 pre-tool-use hooks — Layer 2 detail)
 Configured in `settings.json`, these block dangerous operations *before* they execute:
 
 | Hook | Blocks |
@@ -1019,7 +1072,7 @@ Takes a plan file, auto-detects which repos are needed (by scanning the plan for
 
   Paste this into a new terminal:
 
-    cd .claude/worktrees/user-notifications && claude --dangerously-skip-permissions
+    cd .claude/worktrees/user-notifications && claude --enable-auto-mode
 
   Then inside that session, run:
 
@@ -1248,7 +1301,7 @@ your-project/
 ├── BUSINESS_RULES.md                  # Non-obvious business logic ("looks wrong but correct because...")
 ├── INVARIANTS.md                      # Things that must NEVER break
 ├── .claude/
-│   ├── settings.json                  # Hook configurations
+│   ├── settings.json                  # Hooks, permissions (allow/deny), status line
 │   ├── agents/
 │   │   ├── codebase-analyzer.md       # Analyze implementation details
 │   │   ├── codebase-locator.md        # Find files by feature/topic
@@ -1416,7 +1469,7 @@ Manual discipline is unreliable — you get absorbed in the work and forget. RPI
 
 1. **Context tracking** (`statusline-context-tracker.sh`): After every turn, the StatusLine writes your context window usage percentage to a temp file and shows it in your status bar with a color indicator (green < 70%, yellow 70-85%, red > 85%).
 
-2. **Background handoff agent** (`context-usage-reminder.sh`): The Stop hook reads that state file after each Claude response. At 70% context usage, it injects a warning suggesting `/create_handoff`. At 85%, it **spawns a background `claude -p` instance** that reads the full session transcript and writes a comprehensive handoff document — completely non-blocking to your main session. The background agent has full tool access (Read, Write, Bash) via `--dangerously-skip-permissions` and writes to `thoughts/shared/handoffs/`.
+2. **Background handoff agent** (`context-usage-reminder.sh`): The Stop hook reads that state file after each Claude response. At 70% context usage, it injects a warning suggesting `/create_handoff`. At 85%, it **spawns a background `claude -p` instance** that reads the full session transcript and writes a comprehensive handoff document — completely non-blocking to your main session. The background agent has full tool access (Read, Write, Bash) via `--enable-auto-mode` and writes to `thoughts/shared/handoffs/`.
 
 3. **Crude safety net** (`auto-handoff-on-compact.sh`): If compaction triggers before the background Claude finishes (or if it wasn't spawned), the PreCompact hook fires and does a fast shell-script parse of the transcript JSONL. This produces a minimal handoff with git state, files touched, and recent messages — crude but better than nothing.
 

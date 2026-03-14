@@ -4,7 +4,7 @@
 #   - At 85%: spawns a background Claude instance that writes a rich handoff
 #
 # Reads context usage from a state file written by the statusline script.
-# The 85% threshold launches `claude -p` with --dangerously-skip-permissions
+# The 85% threshold launches `claude -p` with --enable-auto-mode
 # in the background — completely non-blocking to the main session.
 
 INPUT=$(cat)
@@ -42,7 +42,7 @@ if [ "$USED_PCT" -ge 85 ] 2>/dev/null && [ "$HANDOFF_SPAWNED" != "true" ]; then
     HANDOFF_PATH="$HANDOFF_DIR/${DATE}_${TIME}_auto-context-limit_handoff.md"
 
     # Spawn a background Claude instance to write a rich handoff
-    # --dangerously-skip-permissions: needed because non-interactive (no terminal to approve)
+    # --enable-auto-mode: Claude handles permission decisions autonomously with safety guardrails
     # --max-turns 10: cap the work so it doesn't run forever
     # Runs in project directory so it picks up .claude/ config
     (
@@ -77,7 +77,7 @@ IMPORTANT:
 - Include any decisions that were made and their rationale.
 - If there are task lists or plans being followed, note the current position.
 - Write the file and exit. Do not do anything else." \
-        --dangerously-skip-permissions \
+        --enable-auto-mode \
         --max-turns 10 \
         > /dev/null 2>&1
     ) &

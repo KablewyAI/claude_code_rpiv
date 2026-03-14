@@ -59,7 +59,7 @@ From the plan file:
 ```bash
 if [ -d ".claude/worktrees/<slug>" ]; then
   echo "Worktree already exists! Resume with:"
-  echo "  cd .claude/worktrees/<slug> && claude --dangerously-skip-permissions"
+  echo "  cd .claude/worktrees/<slug> && claude --enable-auto-mode"
 fi
 ```
 
@@ -100,7 +100,7 @@ Print a clear, copy-pasteable block:
 
   Paste this into a new terminal:
 
-    cd <worktree-path> && claude --dangerously-skip-permissions
+    cd <worktree-path> && claude --enable-auto-mode
 
   Then inside that session, run:
 
